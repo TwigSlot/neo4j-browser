@@ -1,19 +1,11 @@
 <template>
-  <img alt="Vue logo" src="./assets/logo.png">
-  <HelloWorld msg="Welcome to Your Vue.js App"/> -->
-  <v-network-graph :nodes="nodes" :edges="edges" />
+  <div id="graph">
+    <v-network-graph :nodes="nodes" :edges="edges"/>
+  </div>
+  <text id="graph-div-error">ERROR: This message will disappear when the graph div is resized appropriately.</text>
 </template>
 
 <script>
-// import HelloWorld from './components/HelloWorld.vue'
-
-// export default {
-//   name: 'App',
-//   components: {
-//     HelloWorld
-//   }
-// }
-
 import { defineComponent } from "vue"
 export default defineComponent({
   setup() {
@@ -30,16 +22,22 @@ export default defineComponent({
     }
     return { nodes, edges }
   },
+  watch: {
+
+  }
 })
 </script>
 
 <style>
-#app {
+#graph {
   font-family: Avenir, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-align: center;
   color: #2c3e50;
-  margin-top: 60px;
+  background-color: aqua;
+  /* margin-top: 60px; */
+  height: 20px;
+  overflow: hidden;
 }
 </style>
