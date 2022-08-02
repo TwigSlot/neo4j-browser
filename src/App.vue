@@ -15,12 +15,7 @@
 import { defineComponent } from "vue"
 import { reactive, ref } from "vue"
 import * as vNG from "v-network-graph"
-import {
-  ForceLayout,
-  ForceNodeDatum,
-  ForceEdgeDatum,
-} from "v-network-graph/lib/force-layout"
-// import $ from "jquery";
+
 export default defineComponent({
   setup() {
     const nodes = {
@@ -40,6 +35,18 @@ export default defineComponent({
           scalingObjects: true,
           minZoomLevel: 0.1,
           maxZoomLevel: 16,
+          boxSelectionEnabled: true,
+          selection: {
+            box: {
+              color: "#0000ff20",
+              strokeWidth: 5,
+              strokeColor: "#aaaaff",
+              strokeDasharray: "0",
+            },
+          },
+        },
+        node: {
+          selectable: true,
         },
       })
     )
@@ -67,7 +74,7 @@ export default defineComponent({
   color: #2c3e50;
   background-color: aqua;
   /* margin-top: 60px; */
-  height: 10000px;
+  height: 10px;
   overflow: hidden;
 }
 </style>
