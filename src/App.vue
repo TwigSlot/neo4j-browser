@@ -1,5 +1,7 @@
 <template>
-  <h1>TwigSlot</h1>
+  <text style='font-size:50px'>TwigSlot</text>
+  <input type='checkbox' id='d3-force-enabled' v-model="d3ForceEnabled"/>
+      <label for="d3-force-enabled">Auto-organise</label>
   <div id="graph">
     <v-network-graph 
     v-model:zoom-level="zoomLevel"
@@ -12,9 +14,13 @@
 </template>
 
 <script>
-import { defineComponent } from "vue"
-import { reactive, ref } from "vue"
+import { defineComponent, reactive, ref, computed } from "vue"
 import * as vNG from "v-network-graph"
+import {
+  ForceLayout,
+  ForceNodeDatum,
+  ForceEdgeDatum,
+} from "v-network-graph/lib/force-layout"
 
 export default defineComponent({
   setup() {
@@ -44,14 +50,25 @@ export default defineComponent({
               strokeDasharray: "0",
             },
           },
+          layoutHandler: new ForceLayout({positionFixedByClickWithAltKey: true,})
         },
         node: {
           selectable: true,
         },
       })
     )
+    const d3ForceEnabled = computed({
+      get: () => configs.view.layoutHandler instanceof ForceLayout,
+      set: (value) => {
+        if (value) {
+          configs.view.layoutHandler = new ForceLayout()
+        } else {
+          configs.view.layoutHandler = new vNG.SimpleLayout()
+        }
+      },
+    })
     const zoomLevel = ref(1.5)
-    return { nodes, edges, configs, zoomLevel }
+    return { nodes, edges, configs, zoomLevel, d3ForceEnabled }
   },
   mounted(){
     document.getElementById('graph-div-error').remove()
