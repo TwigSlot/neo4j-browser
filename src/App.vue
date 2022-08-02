@@ -8,33 +8,71 @@
     :nodes="nodes"
     :edges="edges"
     :configs="configs"
+    :event-handlers="eventHandlers"
     />
   </div>
   <text id="graph-div-error">ERROR: This message will disappear when the graph div is resized appropriately.</text>
 </template>
+<script setup>
+console.log(eventLogs)
+</script>
 
 <script>
 import { defineComponent, reactive, ref, computed } from "vue"
 import * as vNG from "v-network-graph"
 import {
   ForceLayout,
-  ForceNodeDatum,
-  ForceEdgeDatum,
 } from "v-network-graph/lib/force-layout"
 
+const original_nodes = {
+  node1: { name: "Node 1" },
+  node2: { name: "Node 2" },
+  node3: { name: "Node 3" },
+  node4: { name: "Node 4" },
+}
+var original_edges = {
+  edge1: { source: "node1", target: "node2" },
+  edge2: { source: "node2", target: "node3" },
+  edge3: { source: "node3", target: "node4" },
+}
+const nodes = reactive({ ...original_nodes })
+const edges = reactive({ ...original_edges })
+const nextNodeIndex = ref(Object.keys(nodes).length + 1)
+const nextEdgeIndex = ref(Object.keys(edges).length + 1)
+
+const selectedNodes = ref();
+const selectedEdges = ref();
+const eventLogs = reactive([])
+
+function addNode() {
+  const nodeId = `node${nextNodeIndex.value}`
+  const name = `N${nextNodeIndex.value}`
+  nodes[nodeId] = { name }
+  nextNodeIndex.value++
+}
+
+function removeNode() {
+  for (const nodeId of selectedNodes.value) {
+    delete nodes[nodeId]
+  }
+}
+
+function addEdge() {
+  if (selectedNodes.value.length !== 2) return
+  const [source, target] = selectedNodes.value
+  const edgeId = `edge${nextEdgeIndex.value}`
+  edges[edgeId] = { source, target }
+  nextEdgeIndex.value++
+}
+
+function removeEdge() {
+  for (const edgeId of selectedEdges.value) {
+    delete edges[edgeId]
+  }
+}
 export default defineComponent({
-  setup() {
-    const nodes = {
-      node1: { name: "Node 1" },
-      node2: { name: "Node 2" },
-      node3: { name: "Node 3" },
-      node4: { name: "Node 4" },
-    }
-    const edges = {
-      edge1: { source: "node1", target: "node2" },
-      edge2: { source: "node2", target: "node3" },
-      edge3: { source: "node3", target: "node4" },
-    }
+  data() {
+    
     const configs = reactive(
       vNG.defineConfigs({
         view: {
@@ -67,8 +105,23 @@ export default defineComponent({
         }
       },
     })
+
+    const EVENTS_COUNT = 6
+
+    const eventHandlers = {
+      // wildcard: capture all events
+      "*": (type, event) => {
+        if (eventLogs.length > EVENTS_COUNT) {
+          eventLogs.splice(EVENTS_COUNT, eventLogs.length - EVENTS_COUNT)
+        }
+        if (event instanceof Object && "event" in event) {
+          Object.assign(event, { event: "(...)" })
+        }
+        eventLogs.unshift([type, JSON.stringify(event)])
+      },
+    }
     const zoomLevel = ref(1.5)
-    return { nodes, edges, configs, zoomLevel, d3ForceEnabled }
+    return { nodes, edges, configs, zoomLevel, d3ForceEnabled, eventHandlers }
   },
   mounted(){
     document.getElementById('graph-div-error').remove()
@@ -78,6 +131,7 @@ export default defineComponent({
     const titleHeight = 100;
     graph.style.setProperty('height',`${windowHeight-titleHeight}px`)
     graph.style.setProperty('width',`${windowWidth*0.6}px`)
+    window.vue = this
   }
 })
 </script>
