@@ -1,7 +1,9 @@
 <template>
-  <text style='font-size:50px'>TwigSlot</text>
-  <input type='checkbox' id='d3-force-enabled' v-model="d3ForceEnabled" />
-  <label for="d3-force-enabled">Auto-organise</label>
+  <div class="control-panel">
+    <text style='font-size:50px'>TwigSlot</text>
+    <input type='checkbox' id='d3-force-enabled' v-model="d3ForceEnabled" />
+    <label for="d3-force-enabled">Auto-organise</label>
+  </div>
   <div id="graph">
     <v-network-graph ref="graph" v-model:selected-nodes="selectedNodes" v-model:zoom-level="zoomLevel" :nodes="nodes"
       :edges="edges" :layouts="layouts" :configs="configs" :event-handlers="eventHandlers" />
@@ -9,13 +11,42 @@
   <text id="graph-div-error">ERROR: This message will disappear when the graph div is resized appropriately.</text>
 </template>
 <script setup>
-console.log(eventLogs)
-function setHandler(mode) {
+import neo4j, {session} from 'neo4j-driver'
+const driver = neo4j.driver('bolt://3.87.191.133:7687',
+  neo4j.auth.basic('neo4j', 'combination-opportunity-hammer'))
+
+console.log('connecting to neo4j')
+driver.verifyConnectivity().then(()=>{
+  console.log('connected');
+  const session = driver.session({database: 'neo4j'});
+  session.readTransaction(tx => {
+    return tx.run(
+      `MATCH (p)
+      RETURN id(p)
+      LIMIT 10`,
+      { title: 'Arthur' } // (2)
+    )
+  }).then((res) => {
+    console.log(res);
+    for(var i in window.vue.nodes){
+      delete window.vue.nodes[i]
+    }
+    res.records.forEach((value, index) => {
+      addVertex(0,0).name = value._fields[0]
+    })
+  });
+});
+
+function initHandler(){
   document.viewClick = () => { };
   document.nodeSelect = () => { };
   document.nodeClick = () => { };
+}
+initHandler();
+function setHandler(mode) {
+  initHandler();
   if (mode == 'vertex') {
-    document.viewClick = addVertex;
+    document.viewClick = addVertexWithMouse;
   } else if (mode == 'edge') {
     document.nodeClick = addEdgePrep;
     document.nodeSelect = (e) => {
@@ -30,7 +61,7 @@ document.onkeydown = function (e) {
   else if (e.key == 'e') setHandler('edge')
 }
 function addEdge(source, target) {
-  console.log(source, target)
+  // console.log(source, target)
   const edgeId = `edge${nextEdgeIndex.value}`
   edges[edgeId] = { source, target }
   nextEdgeIndex.value++
@@ -43,17 +74,21 @@ function addEdgePrep(e) {
     document.sourceNode = null;
   }
 }
-function addVertex(e) {
-  const point = { x: e.offsetX, y: e.offsetY }
-  // translate coordinates: DOM -> SVG
-  const svgPoint = window.vue.graph.translateFromDomToSvgCoordinates(point)
-
+function addVertex(x,y){
   // add node and its position
   const nodeId = `node${nextNodeIndex.value}`
   const name = `Node ${nextNodeIndex.value}`
+  console.log(nodes)
   nodes[nodeId] = { name }
-  window.vue.layouts.nodes[nodeId] = { x: svgPoint.x, y: svgPoint.y };
+  window.vue.layouts.nodes[nodeId] = { x: x, y: y };
   nextNodeIndex.value++
+  return nodes[nodeId];
+}
+function addVertexWithMouse(e) {
+  const point = { x: e.offsetX, y: e.offsetY }
+  // translate coordinates: DOM -> SVG
+  const svgPoint = window.vue.graph.translateFromDomToSvgCoordinates(point)
+  addVertex(svgPoint.x, svgPoint.y);
 }
 
 function removeNode() {
@@ -181,7 +216,7 @@ export default defineComponent({
         } else if (type == 'node:select') {
           document.nodeSelect(event);
         } else {
-          console.log(type, event)
+          // console.log(type, event)
         }
       },
     }
@@ -198,12 +233,14 @@ export default defineComponent({
   },
   mounted() {
     document.getElementById('graph-div-error').remove()
-    var graph = document.getElementById('graph');
-    const windowHeight = window.innerHeight;
-    const windowWidth = window.innerWidth;
-    const titleHeight = 100;
-    graph.style.setProperty('height', `${windowHeight - titleHeight}px`)
-    graph.style.setProperty('width', `${windowWidth * 0.6}px`)
+    window.addEventListener('resize',(ev) => {
+      var graph = document.getElementById('graph');
+      const windowHeight = window.innerHeight;
+      const windowWidth = window.innerWidth;
+      const titleHeight = 0;
+      graph.style.setProperty('height', `${windowHeight - titleHeight}px`)
+      graph.style.setProperty('width', `${windowWidth }px`)
+    });
     window.vue = this
   }
 })
@@ -217,8 +254,19 @@ export default defineComponent({
   text-align: center;
   color: #2c3e50;
   background-color: aqua;
-  /* margin-top: 60px; */
+  margin: 0px;
   height: 10px;
   overflow: hidden;
+}
+.control-panel{
+  width: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+body{
+  width:100%;
+  height:100%;
+  margin:0;
 }
 </style>
