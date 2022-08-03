@@ -1,57 +1,49 @@
 <template>
   <text style='font-size:50px'>TwigSlot</text>
-  <input type='checkbox' id='d3-force-enabled' v-model="d3ForceEnabled"/>
-      <label for="d3-force-enabled">Auto-organise</label>
+  <input type='checkbox' id='d3-force-enabled' v-model="d3ForceEnabled" />
+  <label for="d3-force-enabled">Auto-organise</label>
   <div id="graph">
-    <v-network-graph 
-    ref="graph"
-    v-model:selected-nodes="selectedNodes"
-    v-model:zoom-level="zoomLevel"
-    :nodes="nodes"
-    :edges="edges"
-    :layouts="layouts"
-    :configs="configs"
-    :event-handlers="eventHandlers"
-    />
+    <v-network-graph ref="graph" v-model:selected-nodes="selectedNodes" v-model:zoom-level="zoomLevel" :nodes="nodes"
+      :edges="edges" :layouts="layouts" :configs="configs" :event-handlers="eventHandlers" />
   </div>
   <text id="graph-div-error">ERROR: This message will disappear when the graph div is resized appropriately.</text>
 </template>
 <script setup>
 console.log(eventLogs)
-function setHandler(mode){
-  document.viewClick = ()=>{};
-  document.nodeSelect = ()=>{};
-  document.nodeClick = ()=>{};
-  if(mode == 'vertex'){
+function setHandler(mode) {
+  document.viewClick = () => { };
+  document.nodeSelect = () => { };
+  document.nodeClick = () => { };
+  if (mode == 'vertex') {
     document.viewClick = addVertex;
-  }else if(mode == 'edge'){
+  } else if (mode == 'edge') {
     document.nodeClick = addEdgePrep;
     document.nodeSelect = (e) => {
-      if(e.length == 0) document.sourceNode = null
-      else if(e.length == 2) addEdge(e[0], e[1])
+      if (e.length == 0) document.sourceNode = null
+      else if (e.length == 2) addEdge(e[0], e[1])
     };
     return;
   }
 }
-document.onkeydown = function(e){
-  if(e.key == 'v') setHandler('vertex')
-  else if(e.key == 'e') setHandler('edge')
+document.onkeydown = function (e) {
+  if (e.key == 'v') setHandler('vertex')
+  else if (e.key == 'e') setHandler('edge')
 }
-function addEdge(source, target){
+function addEdge(source, target) {
   console.log(source, target)
   const edgeId = `edge${nextEdgeIndex.value}`
   edges[edgeId] = { source, target }
   nextEdgeIndex.value++
 }
-function addEdgePrep(e){
-  if(document.sourceNode == null){
+function addEdgePrep(e) {
+  if (document.sourceNode == null) {
     document.sourceNode = e.node;
   } else {
     addEdge(document.sourceNode, e.node)
     document.sourceNode = null;
   }
 }
-function addVertex(e){
+function addVertex(e) {
   const point = { x: e.offsetX, y: e.offsetY }
   // translate coordinates: DOM -> SVG
   const svgPoint = window.vue.graph.translateFromDomToSvgCoordinates(point)
@@ -60,7 +52,7 @@ function addVertex(e){
   const nodeId = `node${nextNodeIndex.value}`
   const name = `Node ${nextNodeIndex.value}`
   nodes[nodeId] = { name }
-  window.vue.layouts.nodes[nodeId] = {x: svgPoint.x, y: svgPoint.y};
+  window.vue.layouts.nodes[nodeId] = { x: svgPoint.x, y: svgPoint.y };
   nextNodeIndex.value++
 }
 
@@ -107,7 +99,7 @@ const eventLogs = reactive([])
 
 export default defineComponent({
   data() {
-    
+
     const configs = reactive(
       vNG.defineConfigs({
         view: {
@@ -123,11 +115,40 @@ export default defineComponent({
               strokeDasharray: "0",
             },
           },
-          layoutHandler: new ForceLayout({positionFixedByClickWithAltKey: true,})
+          layoutHandler: new ForceLayout({ positionFixedByClickWithAltKey: true, })
         },
         node: {
           selectable: true,
         },
+        edge: {
+          selectable: true,
+          normal: {
+            width: 3,
+            color: "#4466cc",
+            dasharray: "0",
+            linecap: "butt",
+            animate: false,
+            animationSpeed: 50,
+          },
+          marker: {
+            source: {
+              type: "none",
+              width: 4,
+              height: 4,
+              margin: -1,
+              units: "strokeWidth",
+              color: null,
+            },
+            target: {
+              type: "arrow",
+              width: 4,
+              height: 4,
+              margin: -1,
+              units: "strokeWidth",
+              color: null,
+            },
+          },
+        }
       })
     )
     const d3ForceEnabled = computed({
@@ -153,13 +174,13 @@ export default defineComponent({
         //   Object.assign(event, { event: "(...)" })
         // }
         // eventLogs.unshift([type, JSON.stringify(event)])
-        if(type == 'view:click'){
+        if (type == 'view:click') {
           document.viewClick(event.event);
-        }else if(type == 'node:click'){
+        } else if (type == 'node:click') {
           document.nodeClick(event);
-        }else if(type == 'node:select'){
+        } else if (type == 'node:select') {
           document.nodeSelect(event);
-        }else{
+        } else {
           console.log(type, event)
         }
       },
@@ -175,14 +196,14 @@ export default defineComponent({
     });
     return { graph, nodes, edges, configs, layouts, zoomLevel, d3ForceEnabled, eventHandlers }
   },
-  mounted(){
+  mounted() {
     document.getElementById('graph-div-error').remove()
     var graph = document.getElementById('graph');
     const windowHeight = window.innerHeight;
     const windowWidth = window.innerWidth;
     const titleHeight = 100;
-    graph.style.setProperty('height',`${windowHeight-titleHeight}px`)
-    graph.style.setProperty('width',`${windowWidth*0.6}px`)
+    graph.style.setProperty('height', `${windowHeight - titleHeight}px`)
+    graph.style.setProperty('width', `${windowWidth * 0.6}px`)
     window.vue = this
   }
 })
