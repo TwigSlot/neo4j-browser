@@ -9,6 +9,10 @@
     <input type='checkbox' id='d3-force-enabled' v-model="d3ForceEnabled" />
     <label for="d3-force-enabled">Auto-organise</label>
     <input type='button' id='home' onclick='document.home()' value='home'/>
+    <textarea type="text" id="query-textarea" value="MATCH (p)
+RETURN id(p)
+LIMIT 10" rows="4" cols="40"></textarea>
+    <input type="button" id="query-button" value='query' onclick='document.query()'/>
   </div>
   <text id="graph-div-error">ERROR: This message will disappear when the graph div is resized appropriately.</text>
 </template>
@@ -21,22 +25,7 @@ const driver = neo4j.driver('bolt://3.87.191.133:7687',
 console.log('connecting to neo4j')
 driver.verifyConnectivity().then(()=>{
   console.log('connected');
-  const session = driver.session({database: 'neo4j'});
-  session.readTransaction(tx => {
-    return tx.run(
-      `MATCH (p)
-      RETURN id(p)
-      LIMIT 10`
-    )
-  }).then((res) => {
-    for(var i in window.vue.nodes){
-      delete window.vue.nodes[i]
-    }
-    res.records.forEach((value) => {
-      addVertex(0,0).name = value._fields[0].toString();
-    })
-    // setTimeout(document.home, 5000) // buggy for some reason
-  });
+  document.query();
 });
 document.home = function(){
   for(var j=0; j<1; ++j){ // TODO need to press home button twice
@@ -56,6 +45,25 @@ document.home = function(){
       bottom: maxY+padding,
     })
   }
+}
+document.query = function(){
+  const cypherQuery = document.getElementById('query-textarea').value;
+  const session = driver.session({database: 'neo4j'});
+  const tx = session.beginTransaction();
+  
+  tx.run(cypherQuery).then((res) => {
+    console.log(res)
+    for(var i in window.vue.nodes){
+      delete window.vue.nodes[i]
+    }
+    res.records.forEach((value) => {
+      addVertex(0,0).name = value._fields[0].toString();
+    })
+    session.close();
+  }).catch((message) => {
+    console.log(message);
+  })
+  
 }
 function initHandler(){
   document.viewClick = () => { };
