@@ -5,6 +5,7 @@
   <div id="graph">
     <v-network-graph 
     ref="graph"
+    v-model:selected-nodes="selectedNodes"
     v-model:zoom-level="zoomLevel"
     :nodes="nodes"
     :edges="edges"
@@ -18,35 +19,48 @@
 <script setup>
 console.log(eventLogs)
 function setHandler(mode){
+  document.viewClick = ()=>{};
+  document.nodeSelect = ()=>{};
+  document.nodeClick = ()=>{};
   if(mode == 'vertex'){
+    document.viewClick = addVertex;
+  }else if(mode == 'edge'){
+    document.nodeClick = addEdgePrep;
+    document.nodeSelect = (e) => {
+      if(e.length == 0) document.sourceNode = null
+      else if(e.length == 2) addEdge(e[0], e[1])
+    };
     return;
   }
 }
 document.onkeydown = function(e){
   if(e.key == 'v') setHandler('vertex')
+  else if(e.key == 'e') setHandler('edge')
 }
-document.viewClick = function(e){
-  console.log('view click', e)
-  // var boundingRect = document.getElementsByClassName('v-canvas')[0].getBoundingClientRect();
-  // var viewBox = window.vue.graph.getViewBox();
-  // const percentageX = (e.x - boundingRect.x)/(boundingRect.right - boundingRect.x)
-  // const graphX = (1-percentageX) * viewBox.left + (percentageX) * viewBox.right;
-
-  // const percentageY = (e.y - boundingRect.y)/(boundingRect.bottom- boundingRect.y)
-  // const graphY = (1-percentageY) * viewBox.top + (percentageY) * viewBox.bottom;
+function addEdge(source, target){
+  console.log(source, target)
+  const edgeId = `edge${nextEdgeIndex.value}`
+  edges[edgeId] = { source, target }
+  nextEdgeIndex.value++
+}
+function addEdgePrep(e){
+  if(document.sourceNode == null){
+    document.sourceNode = e.node;
+  } else {
+    addEdge(document.sourceNode, e.node)
+    document.sourceNode = null;
+  }
+}
+function addVertex(e){
   const point = { x: e.offsetX, y: e.offsetY }
   // translate coordinates: DOM -> SVG
   const svgPoint = window.vue.graph.translateFromDomToSvgCoordinates(point)
 
   // add node and its position
-  addNode(svgPoint.x, svgPoint.y);
-}
-
-function addNode(x, y) {
   const nodeId = `node${nextNodeIndex.value}`
   const name = `Node ${nextNodeIndex.value}`
   nodes[nodeId] = { name }
-  window.vue.layouts.nodes[nodeId] = {x: x, y: y};
+  window.vue.layouts.nodes[nodeId] = {x: svgPoint.x, y: svgPoint.y};
   nextNodeIndex.value++
 }
 
@@ -54,14 +68,6 @@ function removeNode() {
   for (const nodeId of selectedNodes.value) {
     delete nodes[nodeId]
   }
-}
-
-function addEdge() {
-  if (selectedNodes.value.length !== 2) return
-  const [source, target] = selectedNodes.value
-  const edgeId = `edge${nextEdgeIndex.value}`
-  edges[edgeId] = { source, target }
-  nextEdgeIndex.value++
 }
 
 function removeEdge() {
@@ -95,8 +101,8 @@ const edges = reactive({ ...original_edges })
 const nextNodeIndex = ref(Object.keys(nodes).length + 1)
 const nextEdgeIndex = ref(Object.keys(edges).length + 1)
 
-const selectedNodes = ref();
-const selectedEdges = ref();
+const selectedNodes = ref([]);
+const selectedEdges = ref([]);
 const eventLogs = reactive([])
 
 export default defineComponent({
@@ -149,6 +155,10 @@ export default defineComponent({
         // eventLogs.unshift([type, JSON.stringify(event)])
         if(type == 'view:click'){
           document.viewClick(event.event);
+        }else if(type == 'node:click'){
+          document.nodeClick(event);
+        }else if(type == 'node:select'){
+          document.nodeSelect(event);
         }else{
           console.log(type, event)
         }
