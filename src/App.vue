@@ -1,16 +1,19 @@
 <template>
-  <div class="control-panel">
-    <text style='font-size:50px'>TwigSlot</text>
-    <input type='checkbox' id='d3-force-enabled' v-model="d3ForceEnabled" />
-    <label for="d3-force-enabled">Auto-organise</label>
-  </div>
   <div id="graph">
     <v-network-graph ref="graph" v-model:selected-nodes="selectedNodes" v-model:zoom-level="zoomLevel" :nodes="nodes"
       :edges="edges" :layouts="layouts" :configs="configs" :event-handlers="eventHandlers" />
   </div>
+
+  <div class="control-panel">
+    <text style='font-size:50px'>TwigSlot</text>
+    <input type='checkbox' id='d3-force-enabled' v-model="d3ForceEnabled" />
+    <label for="d3-force-enabled">Auto-organise</label>
+    <input type='button' id='home' onclick='document.home()' value='home'/>
+  </div>
   <text id="graph-div-error">ERROR: This message will disappear when the graph div is resized appropriately.</text>
 </template>
 <script setup>
+
 import neo4j, {session} from 'neo4j-driver'
 const driver = neo4j.driver('bolt://3.87.191.133:7687',
   neo4j.auth.basic('neo4j', 'combination-opportunity-hammer'))
@@ -23,20 +26,37 @@ driver.verifyConnectivity().then(()=>{
     return tx.run(
       `MATCH (p)
       RETURN id(p)
-      LIMIT 10`,
-      { title: 'Arthur' } // (2)
+      LIMIT 10`
     )
   }).then((res) => {
-    console.log(res);
     for(var i in window.vue.nodes){
       delete window.vue.nodes[i]
     }
-    res.records.forEach((value, index) => {
-      addVertex(0,0).name = value._fields[0]
+    res.records.forEach((value) => {
+      addVertex(0,0).name = value._fields[0].toString();
     })
+    // setTimeout(document.home, 5000) // buggy for some reason
   });
 });
-
+document.home = function(){
+  for(var j=0; j<1; ++j){ // TODO need to press home button twice
+    const inf = 1000000000000;
+    var minX = inf, minY = inf, maxX = -inf, maxY = -inf;
+    for(const i in window.vue.layouts.nodes){
+      minX = Math.min(minX,window.vue.layouts.nodes[i].x)
+      minY = Math.min(minY,window.vue.layouts.nodes[i].y)
+      maxX = Math.max(maxX,window.vue.layouts.nodes[i].x)
+      maxY = Math.max(maxY,window.vue.layouts.nodes[i].y)
+    }
+    const padding = 100;
+    window.vue.graph.setViewBox({
+      left: minX-padding,
+      top: minY-padding,
+      right: maxX+padding,
+      bottom: maxY+padding,
+    })
+  }
+}
 function initHandler(){
   document.viewClick = () => { };
   document.nodeSelect = () => { };
@@ -78,7 +98,7 @@ function addVertex(x,y){
   // add node and its position
   const nodeId = `node${nextNodeIndex.value}`
   const name = `Node ${nextNodeIndex.value}`
-  console.log(nodes)
+  // console.log(nodes)
   nodes[nodeId] = { name }
   window.vue.layouts.nodes[nodeId] = { x: x, y: y };
   nextNodeIndex.value++
@@ -131,6 +151,8 @@ const nextEdgeIndex = ref(Object.keys(edges).length + 1)
 const selectedNodes = ref([]);
 const selectedEdges = ref([]);
 const eventLogs = reactive([])
+
+
 
 export default defineComponent({
   data() {
@@ -233,14 +255,16 @@ export default defineComponent({
   },
   mounted() {
     document.getElementById('graph-div-error').remove()
-    window.addEventListener('resize',(ev) => {
+    function resize(ev){
       var graph = document.getElementById('graph');
       const windowHeight = window.innerHeight;
       const windowWidth = window.innerWidth;
       const titleHeight = 0;
       graph.style.setProperty('height', `${windowHeight - titleHeight}px`)
       graph.style.setProperty('width', `${windowWidth }px`)
-    });
+    }
+    window.addEventListener('resize',resize);
+    resize();
     window.vue = this
   }
 })
