@@ -15,12 +15,13 @@ LIMIT 10" rows="4" cols="40"></textarea>
     <input type="button" id="query-button" value='query' onclick='document.query()' />
   </div>
   <div class="info-panel">
-    <div v-if="dataPanel.labels">
+    <div v-if="dataPanel.labels" v-bind:id="dataPanel.id">
       <h3>{{dataPanel.obj}} Properties</h3>
       <ul>
-        <li v-for="(label,index) in dataPanel.labels" :key="index">{{label}}</li>
+        <li v-for="(label,index) in dataPanel.labels" :key="index" contenteditable="true" v-on:blur="onInputLabel" v-on:onfocus="onFocusLabel">{{label}}</li>
+        <li><input type='button' value='Add Label' onclick='document.addLabel()'/></li>
       </ul>
-      <table v-bind:id="dataPanel.id">
+      <table>
         <tr>
           <th>&lt;id&gt;</th>
           <th>{{dataPanel.id}}</th>
@@ -30,7 +31,7 @@ LIMIT 10" rows="4" cols="40"></textarea>
           <th>
             {{property}}
           </th>
-          <th v-bind:id="'valueOf'+property" contenteditable="true" v-on:blur="onInput">
+          <th v-bind:id="'valueOf'+property" contenteditable="true" v-on:blur="onInputProperty">
             {{value}}
           </th>
         </tr>
@@ -44,8 +45,8 @@ LIMIT 10" rows="4" cols="40"></textarea>
 <script setup>
 
 import neo4j, {session} from 'neo4j-driver'
-const driver = neo4j.driver('bolt://3.87.191.133:7687',
-  neo4j.auth.basic('neo4j', 'combination-opportunity-hammer'))
+const driver = neo4j.driver('bolt://3.236.153.45:7687',
+  neo4j.auth.basic('neo4j', 'cake-multisystem-breads'))
 
 console.log('connecting to neo4j')
 document.driver = driver;
@@ -110,6 +111,8 @@ document.query = function(){
   }).catch((message) => {
     console.log(message);
   })
+}
+document.addLabel = function(){
   
 }
 function initHandler(){
@@ -360,10 +363,10 @@ export default defineComponent({
     return { graph, nodes, edges, configs, layouts, zoomLevel, d3ForceEnabled, eventHandlers, dataPanel }
   },
   methods:{
-    async onInput(e){ // updated value
+    async onInputProperty(e){ // updated value
       const propertyName = (e.target.parentElement.children[0].innerText);
       const propertyValue = e.target.innerText;
-      const objId = parseInt(e.target.parentElement.parentElement.id);
+      const objId = parseInt(e.target.parentElement.parentElement.parentElement.id);
       console.log(propertyName, propertyValue, dataPanel.value['obj'], objId);
       const session = document.driver.session({
         database: 'neo4j',
@@ -385,7 +388,40 @@ export default defineComponent({
       const p = res.records[0].get('n')
 
       // Close the sesssion
-      await session.close()
+      session.close()
+
+      // Return the properties of the node
+      console.log(p)
+      return p.properties
+    },
+    async onInputLabel(e){
+      console.log(e.target);
+      const newLabel = e.target.textContent;
+      const oldLabel = dataPanel.value['labels'][Array.prototype.indexOf.call(e.target.parentElement.children, e.target)];
+      console.log(oldLabel, newLabel);
+      if(oldLabel == newLabel){
+        return;
+      }
+      const objId = parseInt(e.target.parentElement.parentElement.id);
+      const session = document.driver.session({
+        database: 'neo4j',
+      })
+      // Create a node within a write transaction
+      const res = await session.writeTransaction(tx => {
+        var query;
+        if (dataPanel.value['obj'] == 'Relationship') {
+          query = `MATCH (a)-[n]->(b) WHERE id(n)=${objId} CREATE (a)-[n2:${newLabel}]->(b) SET n2=n WITH n,n2,a,b DELETE n RETURN a,n2,b`
+        }else if(dataPanel.value['obj'] == 'Node'){
+          query = `MATCH (n) WHERE id(n)=${objId} REMOVE n:${oldLabel} SET n:${newLabel} RETURN n`
+        }else{
+          console.log('neither node nor rls ???')
+        }
+        return tx.run(query)
+      })
+      const p = res.records[0].get('n')
+
+      // Close the sesssion
+      session.close()
 
       // Return the properties of the node
       console.log(p)
