@@ -15,23 +15,22 @@ LIMIT 10" rows="4" cols="40"></textarea>
     <input type="button" id="query-button" value='query' onclick='document.query()' />
   </div>
   <div class="info-panel">
-    <text style='font-size:50px'>Data Panel</text>
-    <h3>Node labels</h3>
+    <h3>{{dataPanel.obj}} Properties</h3>
     <ul>
       <li v-for="(label,index) in dataPanel.labels" :key="index">{{label}}</li>
     </ul>
-    <table>
+    <table v-bind:id="dataPanel.id">
       <tr>
         <th>&lt;id&gt;</th>
         <th>{{dataPanel.id}}</th>
       </tr>
       <!-- <p>{{dataPanel.properties}}</p> -->
-      <tr v-for="(property, value) in dataPanel.properties" :key="property">
-        <th>
-          {{value}}
-        </th>
+      <tr v-for="(value, property) in dataPanel.properties" :key="value">
         <th>
           {{property}}
+        </th>
+        <th v-bind:id="'valueOf'+property" contenteditable="true" v-on:blur="onInput">
+          {{value}}
         </th>
       </tr>
     </table>
@@ -45,6 +44,7 @@ const driver = neo4j.driver('bolt://3.87.191.133:7687',
   neo4j.auth.basic('neo4j', 'combination-opportunity-hammer'))
 
 console.log('connecting to neo4j')
+document.driver = driver;
 driver.verifyConnectivity().then(()=>{
   console.log('connected');
   document.query();
@@ -205,6 +205,7 @@ const selectedNodes = ref([]);
 const selectedEdges = ref([]);
 const eventLogs = reactive([])
 
+const dataPanel = ref({})
 
 
 export default defineComponent({
@@ -274,7 +275,6 @@ export default defineComponent({
 
     const EVENTS_COUNT = 6
 
-    const dataPanel = ref({})
     const eventHandlers = {
       // wildcard: capture all events
       "*": (type, event) => {
@@ -305,7 +305,7 @@ export default defineComponent({
           console.log(type, event)
           const edgeInfo = edges[event.edge].edgeInfo
           dataPanel.value = {}
-          dataPanel.value['obj'] = 'Edge';
+          dataPanel.value['obj'] = 'Relationship';
           dataPanel.value['labels'] = [edgeInfo.type];
           dataPanel.value['id'] = edgeInfo.identity.toNumber();
           dataPanel.value['properties'] = edgeInfo.properties;
@@ -324,6 +324,39 @@ export default defineComponent({
       },
     });
     return { graph, nodes, edges, configs, layouts, zoomLevel, d3ForceEnabled, eventHandlers, dataPanel }
+  },
+  methods:{
+    async onInput(e){ // updated value
+      const propertyName = (e.target.parentElement.children[0].innerText);
+      const propertyValue = e.target.innerText;
+      const objId = parseInt(e.target.parentElement.parentElement.id);
+      console.log(propertyName, propertyValue, dataPanel.value['obj'], objId);
+      const session = document.driver.session({
+        database: 'neo4j',
+      })
+
+
+      // Create a node within a write transaction
+      const res = await session.writeTransaction(tx => {
+        var query;
+        if (dataPanel.value['obj'] == 'Relationship') {
+          query = `MATCH (a)-[n]->(b) WHERE id(n)=${objId} SET n.${propertyName}='${propertyValue}' RETURN n`
+        }else if(dataPanel.value['obj'] == 'Node'){
+          query = `MATCH (n) WHERE id(n)=${objId} SET n.${propertyName}='${propertyValue}' RETURN n`
+        }else{
+          console.log('neither node nor rls ???')
+        }
+        return tx.run(query)
+      })
+      const p = res.records[0].get('n')
+
+      // Close the sesssion
+      await session.close()
+
+      // Return the properties of the node
+      console.log(p)
+      return p.properties
+    }
   },
   mounted() {
     document.getElementById('graph-div-error').remove()
