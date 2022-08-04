@@ -150,10 +150,10 @@ async function addEdgePrep(e) {
     document.sourceNode = null;
     console.log(newEdge)
 
-    const s = window.vue.nodes[newEdge.source].objInfo.identity.toNumber().toString()
-    const t = window.vue.nodes[newEdge.target].objInfo.identity.toNumber().toString();
-    const query = `MATCH (a), (b) WHERE id(a)=${s} AND id(b)=${t} CREATE (a)-[e:Edge]->(b) RETURN e`
-    const res = await writeTransaction(query);
+    const s = window.vue.nodes[newEdge.source].objInfo.identity.toNumber();
+    const t = window.vue.nodes[newEdge.target].objInfo.identity.toNumber();
+    const query = 'MATCH (a), (b) WHERE id(a)=$s AND id(b)=$t CREATE (a)-[e:Edge]->(b) RETURN e'
+    const res = await writeTransaction(query, {s:s, t:t});
 
     newEdge.objInfo = res.records[0].get('e')
     updateDataPanel(newEdge.objInfo, newEdge) 
@@ -176,8 +176,8 @@ async function addVertexWithMouse(e) {
   // translate coordinates: DOM -> SVG
   const svgPoint = window.vue.graph.translateFromDomToSvgCoordinates(point)
   const newNode = addVertex(svgPoint.x, svgPoint.y);
-  const query = `CREATE (n) SET n.name='${newNode.name}' RETURN n`
-  const res = await window.vue.writeTransaction(query)
+  const query = "CREATE (n) SET n.name=$newName RETURN n"
+  const res = await window.vue.writeTransaction(query, {newName: newNode.name})
 
   newNode.objInfo = res.records[0].get('n')
   console.log(newNode.objInfo)
@@ -225,17 +225,18 @@ const selectedEdges = ref([]);
 const eventLogs = reactive([])
 
 const dataPanel = ref({})
-async function writeTransaction(query){
+async function writeTransaction(query, params){
   const session = document.driver.session({
     database: 'neo4j',
   })
   // Create a node within a write transaction
   const res = await session.writeTransaction(tx => {
-    return tx.run(query)
+    return tx.run(query, params)
   })
 
   // Close the sesssion
   session.close()
+  console.log(res)
   console.log(res.records[0]._fields[0])
   return res
 }
@@ -378,13 +379,13 @@ export default defineComponent({
       var query;
       var obj;
       if (dataPanel.value['objType'] == 'Relationship') {
-        query = `MATCH (a)-[n]->(b) WHERE id(n)=${objId} SET n.${propertyName}='${propertyValue}' RETURN n`
+        query = `MATCH (a)-[n]->(b) WHERE id(n)=$objId SET n.${propertyName}=$propertyValue RETURN n`
       }else if(dataPanel.value['objType'] == 'Node'){
-        query = `MATCH (n) WHERE id(n)=${objId} SET n.${propertyName}='${propertyValue}' RETURN n`
+        query = `MATCH (n) WHERE id(n)=$objId SET n.${propertyName}=$propertyValue RETURN n`
       }else{
         console.log('neither node nor rls ???')
       }
-      const res = await writeTransaction(query);
+      const res = await writeTransaction(query, {objId: objId, propertyName: propertyName, propertyValue: propertyValue});
       const p = res.records[0].get('n')
       dataPanel.value['obj'].objInfo = p
       updateDataPanel(p) // TODO update node/edge objInfo
@@ -401,8 +402,8 @@ export default defineComponent({
         if(dataPanel.value['objType'] == 'Relationship'){
           newLabel = 'Edge'
         }else{
-          const query = `MATCH (n) WHERE id(n)=${objId} REMOVE n:${oldLabel} RETURN n`
-          const res = await writeTransaction(query);
+          const query = `MATCH (n) WHERE id(n)=$objId REMOVE n:${oldLabel} RETURN n`
+          const res = await writeTransaction(query, {objId: objId, oldLabel: oldLabel});
           const p = res.records[0].get('n')
           dataPanel.value['obj'].objInfo = p
           updateDataPanel(p);
@@ -411,13 +412,14 @@ export default defineComponent({
       }
       var query;
       if (dataPanel.value['objType'] == 'Relationship') {
-        query = `MATCH (a)-[n]->(b) WHERE id(n)=${objId} CREATE (a)-[n2:${newLabel}]->(b) SET n2=n WITH n,n2,a,b DELETE n RETURN a,n2,b`
+        // TODO need to ban symbols
+        query = `MATCH (a)-[n]->(b) WHERE id(n)=$objId CREATE (a)-[n2:${newLabel}]->(b) SET n2=n WITH n,n2,a,b DELETE n RETURN a,n2,b`
       }else if(dataPanel.value['objType'] == 'Node'){
-        query = `MATCH (n) WHERE id(n)=${objId} REMOVE n:${oldLabel} SET n:${newLabel} RETURN n`
+        query = `MATCH (n) WHERE id(n)=$objId REMOVE n:${oldLabel} SET n:${newLabel} RETURN n`
       }else{
         console.log('neither node nor rls ???')
       }
-      const res = await writeTransaction(query);
+      const res = await writeTransaction(query, {objId: objId, newLabel: newLabel, oldLabel: oldLabel});
       const p = res.records[0].get('n')
       dataPanel.value['obj'].objInfo = p;
       updateDataPanel(p);
