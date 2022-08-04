@@ -302,7 +302,6 @@ export default defineComponent({
         } else if(type == 'node:pointerout'){
           // console.log('i')
         } else if(type == 'edge:pointerover'){
-          console.log(type, event)
           const edgeInfo = edges[event.edge].edgeInfo
           dataPanel.value = {}
           dataPanel.value['obj'] = 'Edge';
