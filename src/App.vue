@@ -15,25 +15,29 @@ LIMIT 10" rows="4" cols="40"></textarea>
     <input type="button" id="query-button" value='query' onclick='document.query()' />
   </div>
   <div class="info-panel">
-    <h3>{{dataPanel.obj}} Properties</h3>
-    <ul>
-      <li v-for="(label,index) in dataPanel.labels" :key="index">{{label}}</li>
-    </ul>
-    <table v-bind:id="dataPanel.id">
-      <tr>
-        <th>&lt;id&gt;</th>
-        <th>{{dataPanel.id}}</th>
-      </tr>
-      <!-- <p>{{dataPanel.properties}}</p> -->
-      <tr v-for="(value, property) in dataPanel.properties" :key="value">
-        <th>
-          {{property}}
-        </th>
-        <th v-bind:id="'valueOf'+property" contenteditable="true" v-on:blur="onInput">
-          {{value}}
-        </th>
-      </tr>
-    </table>
+    <div v-if="dataPanel.labels">
+      <h3>{{dataPanel.obj}} Properties</h3>
+      <ul>
+        <li v-for="(label,index) in dataPanel.labels" :key="index">{{label}}</li>
+      </ul>
+      <table v-bind:id="dataPanel.id">
+        <tr>
+          <th>&lt;id&gt;</th>
+          <th>{{dataPanel.id}}</th>
+        </tr>
+        <!-- <p>{{dataPanel.properties}}</p> -->
+        <tr v-for="(value, property) in dataPanel.properties" :key="value">
+          <th>
+            {{property}}
+          </th>
+          <th v-bind:id="'valueOf'+property" contenteditable="true" v-on:blur="onInput">
+            {{value}}
+          </th>
+        </tr>
+      </table>
+    </div>
+    <div v-else-if="dataPanel.obj">Creating {{dataPanel.obj}} in Neo4J... Hover over node again later to check</div>
+    <div v-else>Hover over a node/edge to check it out</div>
   </div>
   <text id="graph-div-error">ERROR: This message will disappear when the graph div is resized appropriately.</text>
 </template>
@@ -88,7 +92,7 @@ document.query = function(){
               break;
             }
           }
-          var newVertex = addVertex(0,0,field.identity)
+          var newVertex = addVertex(0,0,field.identity.toNumber())
           newVertex.nodeInfo = field;
           newVertex.name = displayName;
         }else if(field.constructor.name == 'Relationship'){
@@ -152,16 +156,27 @@ function addVertex(x,y,nodeId){
     nextNodeIndex.value++
   }
   const name = `Node ${nextNodeIndex.value}`
-  // console.log(nodes)
   nodes[nodeId] = { name }
   window.vue.layouts.nodes[nodeId] = { x: x, y: y };
   return nodes[nodeId];
 }
-function addVertexWithMouse(e) {
+async function addVertexWithMouse(e) {
   const point = { x: e.offsetX, y: e.offsetY }
   // translate coordinates: DOM -> SVG
   const svgPoint = window.vue.graph.translateFromDomToSvgCoordinates(point)
-  addVertex(svgPoint.x, svgPoint.y);
+  const newNode = addVertex(svgPoint.x, svgPoint.y);
+  const session = document.driver.session({
+    database: 'neo4j',
+  })
+  const res = await session.writeTransaction(tx => {
+    const query = `CREATE (n) SET n.name='${newNode.name}' RETURN n`
+    return tx.run(query)
+  })
+
+  session.close()
+
+  newNode.nodeInfo = res.records[0].get('n')
+  console.log(newNode.nodeInfo)
 }
 
 function removeNode() {
@@ -296,21 +311,26 @@ export default defineComponent({
           // console.log(nodeInfo)
           dataPanel.value = {}
           dataPanel.value['obj'] = 'Node'
-          dataPanel.value['labels'] = nodeInfo.labels;
-          dataPanel.value['id'] = nodeInfo.identity.toNumber();
-          dataPanel.value['properties'] = nodeInfo.properties;
+          if(nodeInfo){
+            dataPanel.value['labels'] = nodeInfo.labels;
+            dataPanel.value['id'] = nodeInfo.identity.toNumber();
+            dataPanel.value['properties'] = nodeInfo.properties;
+          }
         } else if(type == 'node:pointerout'){
           // console.log('i')
         } else if(type == 'edge:pointerover'){
-          console.log(type, event)
+          // console.log(type, event)
           const edgeInfo = edges[event.edge].edgeInfo
           dataPanel.value = {}
           dataPanel.value['obj'] = 'Relationship';
-          dataPanel.value['labels'] = [edgeInfo.type];
-          dataPanel.value['id'] = edgeInfo.identity.toNumber();
-          dataPanel.value['properties'] = edgeInfo.properties;
+          if(edgeInfo){
+            dataPanel.value['labels'] = [edgeInfo.type];
+            dataPanel.value['id'] = edgeInfo.identity.toNumber();
+            dataPanel.value['properties'] = edgeInfo.properties;
+          }
         } else {
-          console.log(type, event)
+          console
+          // console.log(type, event)
         }
       },
     }
