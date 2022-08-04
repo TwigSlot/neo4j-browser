@@ -8,14 +8,33 @@
     <text style='font-size:50px'>TwigSlot</text>
     <input type='checkbox' id='d3-force-enabled' v-model="d3ForceEnabled" />
     <label for="d3-force-enabled">Auto-organise</label>
-    <input type='button' id='home' onclick='document.home()' value='home'/>
-    <textarea type="text" id="query-textarea" value="MATCH (p)
-RETURN p
+    <input type='button' id='home' onclick='document.home()' value='home' />
+    <textarea type="text" id="query-textarea" value="MATCH (p)-[e]->(q)
+RETURN p,e,q
 LIMIT 10" rows="4" cols="40"></textarea>
-    <input type="button" id="query-button" value='query' onclick='document.query()'/>
+    <input type="button" id="query-button" value='query' onclick='document.query()' />
   </div>
   <div class="info-panel">
     <text style='font-size:50px'>Data Panel</text>
+    <h3>Node labels</h3>
+    <ul>
+      <li v-for="(label,index) in dataPanel.labels" :key="index">{{label}}</li>
+    </ul>
+    <table>
+      <tr>
+        <th>&lt;id&gt;</th>
+        <th>{{dataPanel.id}}</th>
+      </tr>
+      <!-- <p>{{dataPanel.properties}}</p> -->
+      <tr v-for="(property, value) in dataPanel.properties" :key="property">
+        <th>
+          {{value}}
+        </th>
+        <th>
+          {{property}}
+        </th>
+      </tr>
+    </table>
   </div>
   <text id="graph-div-error">ERROR: This message will disappear when the graph div is resized appropriately.</text>
 </template>
@@ -55,9 +74,8 @@ document.query = function(){
   const tx = session.beginTransaction();
   
   tx.run(cypherQuery).then((res) => {
-    for(var i in window.vue.nodes){
-      delete window.vue.nodes[i]
-    }
+    for(let i in window.vue.nodes) delete window.vue.nodes[i]
+    for(let i in window.vue.edges) delete window.vue.edges[i]
     const displayableProperties = ['title', 'name']
     res.records.forEach((record, index) => {
       var displayName = `Node ${index}`
@@ -70,11 +88,15 @@ document.query = function(){
               break;
             }
           }
-          var newVertex = addVertex(0,0)
+          var newVertex = addVertex(0,0,field.identity)
           newVertex.nodeInfo = field;
           newVertex.name = displayName;
         }else if(field.constructor.name == 'Relationship'){
-          continue;
+          console.log(field)
+          const s = field.start.toNumber().toString()
+          const t = field.end.toNumber().toString()
+          var newEdge = document.addEdge(s,t);
+          newEdge.edgeInfo = field;
         }else if(field.constructor.name == 'Integer'){
           continue;
         }
@@ -100,7 +122,7 @@ function setHandler(mode) {
     document.nodeClick = addEdgePrep;
     document.nodeSelect = (e) => {
       if (e.length == 0) document.sourceNode = null
-      else if (e.length == 2) addEdge(e[0], e[1])
+      else if (e.length == 2) document.addEdge(e[0], e[1])
     };
     return;
   }
@@ -109,28 +131,30 @@ document.onkeydown = function (e) {
   if (e.key == 'v') setHandler('vertex')
   else if (e.key == 'e') setHandler('edge')
 }
-function addEdge(source, target) {
-  // console.log(source, target)
+document.addEdge = function (source, target) {
   const edgeId = `edge${nextEdgeIndex.value}`
   edges[edgeId] = { source, target }
   nextEdgeIndex.value++
+  return edges[edgeId]
 }
 function addEdgePrep(e) {
   if (document.sourceNode == null) {
     document.sourceNode = e.node;
   } else {
-    addEdge(document.sourceNode, e.node)
+    document.addEdge(document.sourceNode, e.node)
     document.sourceNode = null;
   }
 }
-function addVertex(x,y){
+function addVertex(x,y,nodeId){
   // add node and its position
-  const nodeId = `node${nextNodeIndex.value}`
+  if(nodeId == null){
+    nodeId = `node${nextNodeIndex.value}`
+    nextNodeIndex.value++
+  }
   const name = `Node ${nextNodeIndex.value}`
   // console.log(nodes)
   nodes[nodeId] = { name }
   window.vue.layouts.nodes[nodeId] = { x: x, y: y };
-  nextNodeIndex.value++
   return nodes[nodeId];
 }
 function addVertexWithMouse(e) {
@@ -250,6 +274,7 @@ export default defineComponent({
 
     const EVENTS_COUNT = 6
 
+    const dataPanel = ref({})
     const eventHandlers = {
       // wildcard: capture all events
       "*": (type, event) => {
@@ -267,10 +292,23 @@ export default defineComponent({
         } else if (type == 'node:select') {
           document.nodeSelect(event);
         } else if (type == 'node:pointerover'){ 
-          const nodeName = nodes[event.node]
-          console.log(nodeName)
+          const nodeInfo = nodes[event.node].nodeInfo
+          // console.log(nodeInfo)
+          dataPanel.value = {}
+          dataPanel.value['obj'] = 'Node'
+          dataPanel.value['labels'] = nodeInfo.labels;
+          dataPanel.value['id'] = nodeInfo.identity.toNumber();
+          dataPanel.value['properties'] = nodeInfo.properties;
         } else if(type == 'node:pointerout'){
-          console.log('i')
+          // console.log('i')
+        } else if(type == 'edge:pointerover'){
+          console.log(type, event)
+          const edgeInfo = edges[event.edge].edgeInfo
+          dataPanel.value = {}
+          dataPanel.value['obj'] = 'Edge';
+          dataPanel.value['labels'] = [edgeInfo.type];
+          dataPanel.value['id'] = edgeInfo.identity.toNumber();
+          dataPanel.value['properties'] = edgeInfo.properties;
         } else {
           console.log(type, event)
         }
@@ -285,7 +323,7 @@ export default defineComponent({
         node4: { x: 150, y: 50 },
       },
     });
-    return { graph, nodes, edges, configs, layouts, zoomLevel, d3ForceEnabled, eventHandlers }
+    return { graph, nodes, edges, configs, layouts, zoomLevel, d3ForceEnabled, eventHandlers, dataPanel }
   },
   mounted() {
     document.getElementById('graph-div-error').remove()
