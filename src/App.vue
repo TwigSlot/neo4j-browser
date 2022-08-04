@@ -79,6 +79,7 @@ document.query = async function(){
   const tx = session.beginTransaction();
   
   const res = await tx.run(cypherQuery);
+
   for(let i in window.vue.nodes) delete window.vue.nodes[i]
   for(let i in window.vue.edges) delete window.vue.edges[i]
   const displayableProperties = ['title', 'name']
@@ -145,18 +146,17 @@ async function addEdgePrep(e) {
   if (document.sourceNode == null) {
     document.sourceNode = e.node;
   } else {
-    const newEdge = document.addEdge(document.sourceNode, e.node)
+    const newEdge = document.addEdge(document.sourceNode,e.node)
     document.sourceNode = null;
     console.log(newEdge)
 
-    const session = document.driver.session({
-      database: 'neo4j',
-    })
-    const query = `MATCH (a), (b) WHERE id(a)=${newEdge.source} AND id(b)=${newEdge.target} CREATE (a)-[e:Edge]->(b) RETURN e`
+    const s = window.vue.nodes[newEdge.source].objInfo.identity.toNumber().toString()
+    const t = window.vue.nodes[newEdge.target].objInfo.identity.toNumber().toString();
+    const query = `MATCH (a), (b) WHERE id(a)=${s} AND id(b)=${t} CREATE (a)-[e:Edge]->(b) RETURN e`
     const res = await writeTransaction(query);
 
     newEdge.objInfo = res.records[0].get('e')
-    updateDataPanel(newEdge.objInfo, newEdge)
+    updateDataPanel(newEdge.objInfo, newEdge) 
   }
 }
 function addVertex(x,y,nodeId){
