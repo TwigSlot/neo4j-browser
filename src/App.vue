@@ -141,12 +141,26 @@ document.addEdge = function (source, target) {
   nextEdgeIndex.value++
   return edges[edgeId]
 }
-function addEdgePrep(e) {
+async function addEdgePrep(e) {
   if (document.sourceNode == null) {
     document.sourceNode = e.node;
   } else {
-    document.addEdge(document.sourceNode, e.node)
+    const newEdge = document.addEdge(document.sourceNode, e.node)
     document.sourceNode = null;
+    console.log(newEdge)
+
+    const session = document.driver.session({
+      database: 'neo4j',
+    })
+    const res = await session.writeTransaction(tx => {
+      const query = `MATCH (a), (b) WHERE id(a)=${newEdge.source} AND id(b)=${newEdge.target} CREATE (a)-[e:Edge]->(b) RETURN e`
+      return tx.run(query)
+    })
+
+    session.close()
+
+    newEdge.edgeInfo = res.records[0].get('e')
+    console.log(newEdge.edgeInfo)
   }
 }
 function addVertex(x,y,nodeId){
