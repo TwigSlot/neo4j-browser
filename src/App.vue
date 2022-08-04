@@ -10,9 +10,12 @@
     <label for="d3-force-enabled">Auto-organise</label>
     <input type='button' id='home' onclick='document.home()' value='home'/>
     <textarea type="text" id="query-textarea" value="MATCH (p)
-RETURN id(p)
+RETURN p
 LIMIT 10" rows="4" cols="40"></textarea>
     <input type="button" id="query-button" value='query' onclick='document.query()'/>
+  </div>
+  <div class="info-panel">
+    <text style='font-size:50px'>Data Panel</text>
   </div>
   <text id="graph-div-error">ERROR: This message will disappear when the graph div is resized appropriately.</text>
 </template>
@@ -41,7 +44,7 @@ document.home = function(){
     window.vue.graph.setViewBox({
       left: minX-padding,
       top: minY-padding,
-      right: maxX+padding,
+      right: maxX+padding*5,
       bottom: maxY+padding,
     })
   }
@@ -52,12 +55,30 @@ document.query = function(){
   const tx = session.beginTransaction();
   
   tx.run(cypherQuery).then((res) => {
-    console.log(res)
     for(var i in window.vue.nodes){
       delete window.vue.nodes[i]
     }
-    res.records.forEach((value) => {
-      addVertex(0,0).name = value._fields[0].toString();
+    const displayableProperties = ['title', 'name']
+    res.records.forEach((record, index) => {
+      var displayName = `Node ${index}`
+      for(const key of record.keys){
+        const field = record._fields[record._fieldLookup[key]]
+        if(field.constructor.name == 'Node'){
+          for(const displayableProperty of displayableProperties){
+            if(displayableProperty in field.properties){
+              displayName = field.properties[displayableProperty]
+              break;
+            }
+          }
+          var newVertex = addVertex(0,0)
+          newVertex.nodeInfo = field;
+          newVertex.name = displayName;
+        }else if(field.constructor.name == 'Relationship'){
+          continue;
+        }else if(field.constructor.name == 'Integer'){
+          continue;
+        }
+      }
     })
     session.close();
   }).catch((message) => {
@@ -245,8 +266,13 @@ export default defineComponent({
           document.nodeClick(event);
         } else if (type == 'node:select') {
           document.nodeSelect(event);
+        } else if (type == 'node:pointerover'){ 
+          const nodeName = nodes[event.node]
+          console.log(nodeName)
+        } else if(type == 'node:pointerout'){
+          console.log('i')
         } else {
-          // console.log(type, event)
+          console.log(type, event)
         }
       },
     }
@@ -295,6 +321,14 @@ export default defineComponent({
   position: absolute;
   top: 0;
   left: 0;
+  background-color: antiquewhite;
+}
+.info-panel{
+  width: 40%;
+  position: absolute;
+  top: 0;
+  left: 60%;
+  background-color: aliceblue;
 }
 body{
   width:100%;
