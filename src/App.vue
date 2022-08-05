@@ -1,6 +1,6 @@
 <template>
   <div id="graph">
-    <v-network-graph ref="graph" v-model:selected-nodes="selectedNodes" v-model:zoom-level="zoomLevel" :nodes="nodes"
+    <v-network-graph ref="graph" v-model:selected-nodes="selectedNodes" v-model:selected-edges="selectedEdges" v-model:zoom-level="zoomLevel" :nodes="nodes"
       :edges="edges" :layouts="layouts" :configs="configs" :event-handlers="eventHandlers" />
   </div>
 
@@ -18,7 +18,7 @@ LIMIT 10" rows="4" cols="40"></textarea>
     <div v-if="dataPanel.labels" v-bind:id="dataPanel.id">
       <h3>{{dataPanel.objType}} Properties</h3>
       <ul>
-        <li v-for="(label,index) in dataPanel.labels" :key="index" contenteditable="true" v-on:blur="onInputLabel" v-on:onfocus="onFocusLabel">{{label}}</li>
+        <li v-for="(label,index) in dataPanel.labels" :key="index" contenteditable="true" v-on:blur="onInputLabel">{{label}}</li>
         <li v-if="dataPanel.objType == 'Node'"><input type='button' value='Add Label' onclick='document.addLabel()'/></li>
       </ul>
       <table>
@@ -123,13 +123,13 @@ function initHandler(){
   document.nodeClick = () => { };
 }
 initHandler();
-function setHandler(mode) {
+function setHandler(mode) { // event handler (mode is determined by keyboard input)
   initHandler();
-  if (mode == 'vertex') {
+  if (mode == 'vertex') { // adding vertex
     document.viewClick = addVertexWithMouse;
   } else if (mode == 'edge') {
-    document.nodeClick = addEdgePrep;
-    document.nodeSelect = (e) => {
+    document.nodeClick = addEdgePrep; // addEdgePrep is a fn that handles one-by-one selection of nodes
+    document.nodeSelect = (e) => { // this one handles rect selection
       if (e.length == 0) document.sourceNode = null
       else if (e.length == 2) document.addEdge(e[0], e[1])
     };
@@ -139,6 +139,16 @@ function setHandler(mode) {
 document.onkeydown = function (e) {
   if (e.key == 'v') setHandler('vertex')
   else if (e.key == 'e') setHandler('edge')
+  else if (e.key == 'Delete') document.deleteObjects();
+}
+document.deleteObjects = function(){
+  const total = window.vue.selectedNodes.length + window.vue.selectedEdges.length
+  if (total > 0) {
+    if (confirm(`Confirm deletion of ${total} objects?`)) {
+      document.removeNode();
+      document.removeEdge();
+    }
+  }
 }
 document.addEdge = function (source, target) {
   const edgeId = `edge${nextEdgeIndex.value}`
@@ -190,15 +200,16 @@ async function addVertexWithMouse(e) {
     })
 }
 
-function removeNode() {
+document.removeNode = async function () {
+  console.log(selectedNodes)
   for (const nodeId of selectedNodes.value) {
-    delete nodes[nodeId]
+    window.vue.deleteNode(nodeId)
   }
 }
-
-function removeEdge() {
+document.removeEdge = function () {
+  console.log(selectedEdges)
   for (const edgeId of selectedEdges.value) {
-    delete edges[edgeId]
+    window.vue.deleteEdge(edgeId)
   }
 }
 </script>
@@ -245,7 +256,6 @@ async function writeTransaction(query, params, callback){
   session.close()
   if(callback) callback(res);
   console.log(res)
-  console.log(res.records[0]._fields[0])
   return res
 }
 function updateDataPanel(objInfo, obj){ // TODO actually can just change the params to obj
@@ -377,12 +387,28 @@ export default defineComponent({
     return { graph, nodes, edges, configs, layouts, zoomLevel, d3ForceEnabled, eventHandlers, dataPanel }
   },
   methods:{
- 
+    async deleteNode(nodeId){ // nodeInfo is the Node from Neo4J, nodeVisual is the SVG object representing the node
+      const objId = nodes[nodeId].objInfo.identity.toNumber();
+      const query = `MATCH (n) WHERE id(n)=$objId DETACH DELETE n`
+      await writeTransaction(query, { objId: objId }, 
+        (res)=>{
+          delete nodes[nodeId]
+        });
+    },
+    async deleteEdge(edgeId){
+      const objId = edges[edgeId].objInfo.identity.toNumber();
+      const query = `MATCH (a)-[n]->(b) WHERE id(n)=$objId DELETE n`
+      await writeTransaction(query, { objId: objId }, 
+        (res)=>{
+          delete edges[edgeId]
+        });
+    },
     getPropertyNameValue(row){ // row is the row of the table
       const objId = parseInt(row.parentElement.parentElement.id); // id in neo4j
       return [objId, row.children[0].innerText, row.children[1].innerText];
     },
     async onInputPropertyName(e){ // edit property name
+      document.deleteMode = true;
       let [objId, newPropertyName, newPropertyValue] = this.getPropertyNameValue(e.target.parentElement)
       var propertyIdx = Array.prototype.indexOf.call(e.target.parentElement.parentElement.children, e.target.parentElement)
       propertyIdx-=1; // for the <id> row which doesnt change
@@ -421,6 +447,7 @@ export default defineComponent({
       // dataPanel.value['obj'].objInfo = p
     },
     async onInputPropertyValue(e){ // edit property value
+      document.deleteMode = true;
       // name and value of altered property
       let [objId, propertyName, propertyValue] = this.getPropertyNameValue(e.target.parentElement)
       console.log(propertyName, propertyValue, dataPanel.value['objType'], objId);
