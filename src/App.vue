@@ -35,7 +35,7 @@ LIMIT 10" rows="4" cols="40"></textarea>
             {{value}}
           </th>
         </tr>
-        <tr><input type="button" value="Add Property"/></tr>
+        <tr><input type="button" value="Add Property" onclick="document.addProperty()"/></tr>
       </table>
     </div>
     <div v-else-if="dataPanel.objType">Creating {{dataPanel.objType}} in Neo4J... Hover over node again later to check</div>
@@ -112,7 +112,10 @@ document.query = async function(){
   session.close();
 }
 document.addLabel = function(){
-  dataPanel.value['labels'].push('NewLabel')
+  dataPanel.value['labels'].push('NewLabel');
+}
+document.addProperty = function(){
+  dataPanel.value['properties']['NewPropertyName'] = 'NewPropertyValue';
 }
 function initHandler(){
   document.viewClick = () => { };
@@ -183,7 +186,7 @@ async function addVertexWithMouse(e) {
   await window.vue.writeTransaction(query, {newName: newNode.name},
     (res) => {
       newNode.objInfo = res.records[0].get('n')
-      updateDataPanel(newNode.objInfo)
+      updateDataPanel(newNode.objInfo, newNode)
     })
 }
 
@@ -245,7 +248,7 @@ async function writeTransaction(query, params, callback){
   console.log(res.records[0]._fields[0])
   return res
 }
-function updateDataPanel(objInfo, obj){
+function updateDataPanel(objInfo, obj){ // TODO actually can just change the params to obj
   console.log(obj)
   if(!objInfo) return;
   dataPanel.value = {}
@@ -379,12 +382,13 @@ export default defineComponent({
       const objId = parseInt(row.parentElement.parentElement.id); // id in neo4j
       return [objId, row.children[0].innerText, row.children[1].innerText];
     },
-    async onInputPropertyName(e){
-      let [objId, newPropertyName, _] = this.getPropertyNameValue(e.target.parentElement)
-      console.log(e.target)
+    async onInputPropertyName(e){ // edit property name
+      let [objId, newPropertyName, newPropertyValue] = this.getPropertyNameValue(e.target.parentElement)
       var propertyIdx = Array.prototype.indexOf.call(e.target.parentElement.parentElement.children, e.target.parentElement)
       propertyIdx-=1; // for the <id> row which doesnt change
-      const oldPropertyName = Object.keys(dataPanel.value['properties'])[propertyIdx]
+      const propertyNames = Object.keys(dataPanel.value['properties'])
+      console.log(propertyIdx, propertyNames)
+      const oldPropertyName = propertyNames[propertyIdx]
       var query;
       if (dataPanel.value['objType'] == 'Relationship') {
         query = `MATCH (a)-[n]->(b) WHERE id(n)=$objId`
@@ -392,19 +396,31 @@ export default defineComponent({
         query = `MATCH (n) WHERE id(n)=$objId`
       }else{     
         console.log('neither node nor edge')
+        return;
       }
-      query += ` SET n.\`${newPropertyName}\`=n.\`${oldPropertyName}\` REMOVE n.\`${oldPropertyName}\` RETURN n`
+      if (oldPropertyName == '' && newPropertyName == '') { // changed my mind about adding a new property
+        query += ` RETURN n`
+      } else if (oldPropertyName == '') { // adding a new property
+        query += ` SET n.\`${newPropertyName}\`=$newPropertyValue RETURN n`
+      } else if (newPropertyName == '') { // removing an old property
+        query += ` REMOVE n.\`${oldPropertyName}\` RETURN n`
+      } else if (oldPropertyName == newPropertyName) { // either a new property or there are no updates
+        query += ` SET n.\`${newPropertyName}\` = $newPropertyValue RETURN n` 
+      } else { // updating the name of an old property
+        query += ` SET n.\`${newPropertyName}\`=n.\`${oldPropertyName}\` REMOVE n.\`${oldPropertyName}\` RETURN n`
+      }
       const curObj = dataPanel.value['obj']
-      await writeTransaction(query, { objId: objId }, 
+      console.log(curObj, 'is the current obj')
+      await writeTransaction(query, { objId: objId , newPropertyValue: newPropertyValue}, 
         (res)=>{
           curObj.objInfo = res.records[0].get('n')
           // console.log(curObj, dataPanel.value['obj'], 'ARE NOT NECESSARILY THE SAME')
-          if(curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo) 
+          if(curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo, curObj) 
         });
       // const p = res.records[0].get('n')
       // dataPanel.value['obj'].objInfo = p
     },
-    async onInputPropertyValue(e){ // updated value of property
+    async onInputPropertyValue(e){ // edit property value
       // name and value of altered property
       let [objId, propertyName, propertyValue] = this.getPropertyNameValue(e.target.parentElement)
       console.log(propertyName, propertyValue, dataPanel.value['objType'], objId);
@@ -421,7 +437,7 @@ export default defineComponent({
       await writeTransaction(query, {objId: objId, propertyName: propertyName, propertyValue: propertyValue},
         (res) => {
           curObj.objInfo = res.records[0].get('n')
-          if(curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo);
+          if(curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo, curObj);
         });
     },
    async onInputLabel(e){
@@ -441,7 +457,7 @@ export default defineComponent({
           await writeTransaction(query, {objId: objId, oldLabel: oldLabel}, 
             (res) =>{
               curObj.objInfo = res.records[0].get('n')
-              if(curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo);
+              if(curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo, curObj);
             });
           return;
         }
@@ -454,11 +470,11 @@ export default defineComponent({
       }else{
         console.log('neither node nor rls ???')
       }
-      const curObj = dataPanel.value['obj']
+      const curObj = dataPanel.value['obj'];
       await writeTransaction(query, {objId: objId, newLabel: newLabel, oldLabel: oldLabel},
         (res) => {
           curObj.objInfo = res.records[0].get('n')
-          if (curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo);
+          if (curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo, curObj);
         });
     }
   },
