@@ -118,14 +118,28 @@ document.addProperty = function(){
   dataPanel.value['properties']['NewPropertyName'] = 'NewPropertyValue';
 }
 function initHandler(){
+  document.fixDataPanel = false;
   document.viewClick = () => { };
   document.nodeSelect = () => { };
   document.nodeClick = () => { };
+  document.edgeSelect = () => { };
 }
 initHandler();
 function setHandler(mode) { // event handler (mode is determined by keyboard input)
   initHandler();
-  if (mode == 'vertex') { // adding vertex
+  if(mode == 'select'){
+    document.fixDataPanel = true;
+    function objSelect(e, objs){
+      console.log(e)
+      console.log(objs)
+      if(e.length == 0) return;
+      document.fixDataPanel = false;
+      window.vue.updateDataPanel(objs[e[e.length-1]].objInfo, objs[e[e.length-1]])
+      document.fixDataPanel = true;
+    }
+    document.nodeSelect = (e) => { objSelect(e, window.vue.nodes); }
+    document.edgeSelect = (e) => { objSelect(e, window.vue.edges); }
+  }else if (mode == 'vertex') { // adding vertex
     document.viewClick = addVertexWithMouse;
   } else if (mode == 'edge') {
     document.nodeClick = addEdgePrep; // addEdgePrep is a fn that handles one-by-one selection of nodes
@@ -136,13 +150,15 @@ function setHandler(mode) { // event handler (mode is determined by keyboard inp
     return;
   }
 }
+setHandler('select') // default mode
 document.onkeydown = function (e) {
-  if (e.key == 'v') setHandler('vertex')
+  if(e.key == 's') setHandler('select')
+  else if (e.key == 'v') setHandler('vertex')
   else if (e.key == 'e') setHandler('edge')
   else if (e.key == 'Delete') document.deleteObjects();
 }
 document.deleteObjects = function(){
-  const total = window.vue.selectedNodes.length + window.vue.selectedEdges.length
+  const total = selectedNodes.value.length + selectedEdges.value.length
   if (total > 0) {
     if (confirm(`Confirm deletion of ${total} objects?`)) {
       document.removeNode();
@@ -201,7 +217,6 @@ async function addVertexWithMouse(e) {
 }
 
 document.removeNode = async function () {
-  console.log(selectedNodes)
   for (const nodeId of selectedNodes.value) {
     window.vue.deleteNode(nodeId)
   }
@@ -259,6 +274,11 @@ async function writeTransaction(query, params, callback){
   return res
 }
 function updateDataPanel(objInfo, obj){ // TODO actually can just change the params to obj
+  console.log(document.fixDataPanel, selectedNodes.value)
+  const total = selectedNodes.value.length + selectedEdges.value.length
+  if(document.fixDataPanel && total > 0){ 
+    return
+  }
   console.log(obj)
   if(!objInfo) return;
   dataPanel.value = {}
@@ -369,8 +389,8 @@ export default defineComponent({
         } else if(type == 'edge:pointerover'){
           const obj = edges[event.edge]
           updateDataPanel(obj.objInfo, obj)
-        } else {
-          console
+        } else if (type == 'edge:select') {
+          document.edgeSelect(event)
           // console.log(type, event)
         }
       },
