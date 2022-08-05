@@ -226,6 +226,7 @@ const eventLogs = reactive([])
 
 const dataPanel = ref({})
 async function writeTransaction(query, params){
+  console.log(query, params)
   const session = document.driver.session({
     database: 'neo4j',
   })
@@ -402,7 +403,7 @@ export default defineComponent({
         if(dataPanel.value['objType'] == 'Relationship'){
           newLabel = 'Edge'
         }else{
-          const query = `MATCH (n) WHERE id(n)=$objId REMOVE n:${oldLabel} RETURN n`
+          const query = `MATCH (n) WHERE id(n)=$objId REMOVE n:\`${oldLabel}\` RETURN n`
           const res = await writeTransaction(query, {objId: objId, oldLabel: oldLabel});
           const p = res.records[0].get('n')
           dataPanel.value['obj'].objInfo = p
@@ -413,9 +414,9 @@ export default defineComponent({
       var query;
       if (dataPanel.value['objType'] == 'Relationship') {
         // TODO need to ban symbols
-        query = `MATCH (a)-[n]->(b) WHERE id(n)=$objId CREATE (a)-[n2:${newLabel}]->(b) SET n2=n WITH n,n2,a,b DELETE n RETURN a,n2,b`
+        query = `MATCH (a)-[n]->(b) WHERE id(n)=$objId CREATE (a)-[n2:\`${newLabel}\`]->(b) SET n2=n WITH n,n2,a,b DELETE n RETURN a,n2,b`
       }else if(dataPanel.value['objType'] == 'Node'){
-        query = `MATCH (n) WHERE id(n)=$objId REMOVE n:${oldLabel} SET n:${newLabel} RETURN n`
+        query = `MATCH (n) WHERE id(n)=$objId REMOVE n:\`${oldLabel}\` SET n:\`${newLabel}\` RETURN n`
       }else{
         console.log('neither node nor rls ???')
       }
