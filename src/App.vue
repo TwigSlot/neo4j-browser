@@ -19,7 +19,7 @@ LIMIT 10" rows="4" cols="40"></textarea>
       <h3>{{dataPanel.objType}} Properties</h3>
       <ul>
         <li v-for="(label,index) in dataPanel.labels" :key="index" contenteditable="true" v-on:blur="onInputLabel" v-on:onfocus="onFocusLabel">{{label}}</li>
-        <li><input type='button' value='Add Label' onclick='document.addLabel()'/></li>
+        <li v-if="dataPanel.objType == 'Node'"><input type='button' value='Add Label' onclick='document.addLabel()'/></li>
       </ul>
       <table>
         <tr>
@@ -28,13 +28,14 @@ LIMIT 10" rows="4" cols="40"></textarea>
         </tr>
         <!-- <p>{{dataPanel.properties}}</p> -->
         <tr v-for="(value, property) in dataPanel.properties" :key="value">
-          <th>
+          <th contenteditable="true" v-on:blur="onInputPropertyName">
             {{property}}
           </th>
-          <th v-bind:id="'valueOf'+property" contenteditable="true" v-on:blur="onInputProperty">
+          <th v-bind:id="'valueOf'+property" contenteditable="true" v-on:blur="onInputPropertyValue">
             {{value}}
           </th>
         </tr>
+        <tr><input type="button" value="Add Property"/></tr>
       </table>
     </div>
     <div v-else-if="dataPanel.objType">Creating {{dataPanel.objType}} in Neo4J... Hover over node again later to check</div>
@@ -371,21 +372,43 @@ export default defineComponent({
   },
   methods:{
  
-    async onInputProperty(e){ // updated value of property
+    getPropertyNameValue(row){ // row is the row of the table
+      const objId = parseInt(row.parentElement.parentElement.id); // id in neo4j
+      return [objId, row.children[0].innerText, row.children[1].innerText];
+    },
+    async onInputPropertyName(e){
+      let [objId, newPropertyName, _] = this.getPropertyNameValue(e.target.parentElement)
+      console.log(e.target)
+      var propertyIdx = Array.prototype.indexOf.call(e.target.parentElement.parentElement.children, e.target.parentElement)
+      propertyIdx-=1; // for the <id> row which doesnt change
+      const oldPropertyName = Object.keys(dataPanel.value['properties'])[propertyIdx]
+      var query;
+      if (dataPanel.value['objType'] == 'Relationship') {
+        query = `MATCH (a)-[n]->(b) WHERE id(n)=$objId`
+      }else if(dataPanel.value['objType'] == 'Node'){
+        query = `MATCH (n) WHERE id(n)=$objId`
+      }else{     
+        console.log('neither node nor edge')
+      }
+      query += ` SET n.\`${newPropertyName}\`=n.\`${oldPropertyName}\` REMOVE n.\`${oldPropertyName}\` RETURN n`
+      const res = await writeTransaction(query, {objId: objId});
+      const p = res.records[0].get('n')
+      dataPanel.value['obj'].objInfo = p
+      updateDataPanel(p) // TODO update node/edge objInfo
+    },
+    async onInputPropertyValue(e){ // updated value of property
       // name and value of altered property
-      const propertyName = (e.target.parentElement.children[0].innerText);
-      const propertyValue = e.target.innerText;
-      const objId = parseInt(e.target.parentElement.parentElement.parentElement.id); // id in neo4j
+      let [objId, propertyName, propertyValue] = this.getPropertyNameValue(e.target.parentElement)
       console.log(propertyName, propertyValue, dataPanel.value['objType'], objId);
       var query;
-      var obj;
       if (dataPanel.value['objType'] == 'Relationship') {
-        query = `MATCH (a)-[n]->(b) WHERE id(n)=$objId SET n.${propertyName}=$propertyValue RETURN n`
+        query = `MATCH (a)-[n]->(b) WHERE id(n)=$objId`
       }else if(dataPanel.value['objType'] == 'Node'){
-        query = `MATCH (n) WHERE id(n)=$objId SET n.${propertyName}=$propertyValue RETURN n`
+        query = `MATCH (n) WHERE id(n)=$objId`
       }else{
         console.log('neither node nor rls ???')
       }
+      query += ` SET n.\`${propertyName}\`=$propertyValue RETURN n`
       const res = await writeTransaction(query, {objId: objId, propertyName: propertyName, propertyValue: propertyValue});
       const p = res.records[0].get('n')
       dataPanel.value['obj'].objInfo = p
@@ -414,13 +437,14 @@ export default defineComponent({
       var query;
       if (dataPanel.value['objType'] == 'Relationship') {
         // TODO need to ban symbols
-        query = `MATCH (a)-[n]->(b) WHERE id(n)=$objId CREATE (a)-[n2:\`${newLabel}\`]->(b) SET n2=n WITH n,n2,a,b DELETE n RETURN a,n2,b`
+        query = `MATCH (a)-[n2]->(b) WHERE id(n2)=$objId CREATE (a)-[n:\`${newLabel}\`]->(b) SET n=n2 WITH n,n2,a,b DELETE n2 RETURN a,n,b`
       }else if(dataPanel.value['objType'] == 'Node'){
         query = `MATCH (n) WHERE id(n)=$objId REMOVE n:\`${oldLabel}\` SET n:\`${newLabel}\` RETURN n`
       }else{
         console.log('neither node nor rls ???')
       }
       const res = await writeTransaction(query, {objId: objId, newLabel: newLabel, oldLabel: oldLabel});
+      
       const p = res.records[0].get('n')
       dataPanel.value['obj'].objInfo = p;
       updateDataPanel(p);
