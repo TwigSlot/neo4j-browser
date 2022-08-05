@@ -154,10 +154,12 @@ async function addEdgePrep(e) {
     const s = window.vue.nodes[newEdge.source].objInfo.identity.toNumber();
     const t = window.vue.nodes[newEdge.target].objInfo.identity.toNumber();
     const query = 'MATCH (a), (b) WHERE id(a)=$s AND id(b)=$t CREATE (a)-[e:Edge]->(b) RETURN e'
-    const res = await writeTransaction(query, {s:s, t:t});
 
-    newEdge.objInfo = res.records[0].get('e')
-    updateDataPanel(newEdge.objInfo, newEdge) 
+    await writeTransaction(query, {s:s, t:t}, 
+      (res) => {
+        newEdge.objInfo = res.records[0].get('e')
+        updateDataPanel(newEdge.objInfo, newEdge) 
+      });
   }
 }
 function addVertex(x,y,nodeId){
@@ -178,10 +180,11 @@ async function addVertexWithMouse(e) {
   const svgPoint = window.vue.graph.translateFromDomToSvgCoordinates(point)
   const newNode = addVertex(svgPoint.x, svgPoint.y);
   const query = "CREATE (n) SET n.name=$newName RETURN n"
-  const res = await window.vue.writeTransaction(query, {newName: newNode.name})
-
-  newNode.objInfo = res.records[0].get('n')
-  console.log(newNode.objInfo)
+  await window.vue.writeTransaction(query, {newName: newNode.name},
+    (res) => {
+      newNode.objInfo = res.records[0].get('n')
+      updateDataPanel(newNode.objInfo)
+    })
 }
 
 function removeNode() {
@@ -226,7 +229,7 @@ const selectedEdges = ref([]);
 const eventLogs = reactive([])
 
 const dataPanel = ref({})
-async function writeTransaction(query, params){
+async function writeTransaction(query, params, callback){
   console.log(query, params)
   const session = document.driver.session({
     database: 'neo4j',
@@ -235,9 +238,9 @@ async function writeTransaction(query, params){
   const res = await session.writeTransaction(tx => {
     return tx.run(query, params)
   })
-
   // Close the sesssion
   session.close()
+  if(callback) callback(res);
   console.log(res)
   console.log(res.records[0]._fields[0])
   return res
@@ -391,10 +394,15 @@ export default defineComponent({
         console.log('neither node nor edge')
       }
       query += ` SET n.\`${newPropertyName}\`=n.\`${oldPropertyName}\` REMOVE n.\`${oldPropertyName}\` RETURN n`
-      const res = await writeTransaction(query, {objId: objId});
-      const p = res.records[0].get('n')
-      dataPanel.value['obj'].objInfo = p
-      updateDataPanel(p) // TODO update node/edge objInfo
+      const curObj = dataPanel.value['obj']
+      await writeTransaction(query, { objId: objId }, 
+        (res)=>{
+          curObj.objInfo = res.records[0].get('n')
+          // console.log(curObj, dataPanel.value['obj'], 'ARE NOT NECESSARILY THE SAME')
+          if(curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo) 
+        });
+      // const p = res.records[0].get('n')
+      // dataPanel.value['obj'].objInfo = p
     },
     async onInputPropertyValue(e){ // updated value of property
       // name and value of altered property
@@ -409,10 +417,12 @@ export default defineComponent({
         console.log('neither node nor rls ???')
       }
       query += ` SET n.\`${propertyName}\`=$propertyValue RETURN n`
-      const res = await writeTransaction(query, {objId: objId, propertyName: propertyName, propertyValue: propertyValue});
-      const p = res.records[0].get('n')
-      dataPanel.value['obj'].objInfo = p
-      updateDataPanel(p) // TODO update node/edge objInfo
+      const curObj = dataPanel.value['obj'];
+      await writeTransaction(query, {objId: objId, propertyName: propertyName, propertyValue: propertyValue},
+        (res) => {
+          curObj.objInfo = res.records[0].get('n')
+          if(curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo);
+        });
     },
    async onInputLabel(e){
       console.log(e.target);
@@ -427,27 +437,29 @@ export default defineComponent({
           newLabel = 'Edge'
         }else{
           const query = `MATCH (n) WHERE id(n)=$objId REMOVE n:\`${oldLabel}\` RETURN n`
-          const res = await writeTransaction(query, {objId: objId, oldLabel: oldLabel});
-          const p = res.records[0].get('n')
-          dataPanel.value['obj'].objInfo = p
-          updateDataPanel(p);
+          const curObj = dataPanel.value['obj']
+          await writeTransaction(query, {objId: objId, oldLabel: oldLabel}, 
+            (res) =>{
+              curObj.objInfo = res.records[0].get('n')
+              if(curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo);
+            });
           return;
         }
       }
       var query;
       if (dataPanel.value['objType'] == 'Relationship') {
-        // TODO need to ban symbols
         query = `MATCH (a)-[n2]->(b) WHERE id(n2)=$objId CREATE (a)-[n:\`${newLabel}\`]->(b) SET n=n2 WITH n,n2,a,b DELETE n2 RETURN a,n,b`
       }else if(dataPanel.value['objType'] == 'Node'){
         query = `MATCH (n) WHERE id(n)=$objId REMOVE n:\`${oldLabel}\` SET n:\`${newLabel}\` RETURN n`
       }else{
         console.log('neither node nor rls ???')
       }
-      const res = await writeTransaction(query, {objId: objId, newLabel: newLabel, oldLabel: oldLabel});
-      
-      const p = res.records[0].get('n')
-      dataPanel.value['obj'].objInfo = p;
-      updateDataPanel(p);
+      const curObj = dataPanel.value['obj']
+      await writeTransaction(query, {objId: objId, newLabel: newLabel, oldLabel: oldLabel},
+        (res) => {
+          curObj.objInfo = res.records[0].get('n')
+          if (curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo);
+        });
     }
   },
   mounted() {
