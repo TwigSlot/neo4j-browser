@@ -6,12 +6,23 @@
   </div>
 
   <div class="control-panel">
-    <input type='checkbox' id='d3-force-enabled' v-model="d3ForceEnabled" />
-    <label for="d3-force-enabled">Auto-organise</label>
-    <input type='button' id='home' onclick='document.home()' value='home' />
-    <textarea type="text" id="query-textarea" v-model="query" placeholder="Enter a cypher query" rows="4"
-      cols="40"></textarea>
-    <input type="button" id="query-button" value='query' onclick='document.query()' />
+    <div>
+      <label for="server-url">Server URL: </label>
+      <input type="text" id="server-url" value="neo4j+s://ae6e3bf9.databases.neo4j.io"/>
+      <label for="server-username">Username: </label>
+      <input type="text" id="server-username" value="neo4j"/>
+      <label for="server-password">Password: </label>
+      <input type="password" id="server-password" value="pxHM45j7jD54_tvddMklXySWjbafvZfv01-B_GIDpVU"/>
+      <input type="button" value="Connect" onclick="document.connect()"/>
+    </div>
+    <div>
+      <input type='checkbox' id='d3-force-enabled' v-model="d3ForceEnabled" />
+      <label for="d3-force-enabled">Auto-organise</label>
+      <input type='button' id='home' onclick='document.home()' value='home' />
+      <textarea type="text" id="query-textarea" v-model="query" placeholder="Enter a cypher query" rows="4"
+        cols="40"></textarea>
+      <input type="button" id="query-button" value='query' onclick='document.query()' />
+    </div>
   </div>
   <div class="info-panel">
     <div v-if="dataPanel.labels" v-bind:id="dataPanel.id">
@@ -59,15 +70,20 @@
 <script setup>
 
 import neo4j, {session} from 'neo4j-driver'
-var driver = neo4j.driver('bolt://3.236.153.45:7687',
-  neo4j.auth.basic('neo4j', 'cake-multisystem-breads'))
-
-console.log('connecting to neo4j')
-document.driver = driver;
-driver.verifyConnectivity().then(()=>{
-  console.log('connected');
-  document.query();
-});
+document.connect = async function(){
+  const serverURL = document.getElementById('server-url').value;
+  const serverUsername = document.getElementById('server-username').value;
+  const serverPassword = document.getElementById('server-password').value;
+  console.log('connecting to neo4j')
+  document.driver = neo4j.driver(serverURL,
+    neo4j.auth.basic(serverUsername, serverPassword))
+  document.driver.verifyConnectivity().then(()=>{
+    console.log('connected');
+    window.vue.query = defaultQuery;
+    document.query();
+  });
+}
+// document.connect();
 document.home = function(){
   for(var j=0; j<1; ++j){ // TODO need to press home button twice
     const inf = 1000000000000;
@@ -87,10 +103,11 @@ document.home = function(){
     })
   }
 }
+
 document.query = async function(){
-  const cypherQuery = document.getElementById('query-textarea').value;
+  const cypherQuery = window.vue.query;
   commandPanel.value.push(cypherQuery)
-  const session = driver.session({database: 'neo4j'});
+  const session = document.driver.session({database: 'neo4j'});
   const tx = session.beginTransaction();
   
   const res = await tx.run(cypherQuery);
@@ -270,7 +287,9 @@ const nextEdgeIndex = ref(Object.keys(edges).length + 1)
 const selectedNodes = ref([]);
 const selectedEdges = ref([]);
 const eventLogs = reactive([])
-const defaultQuery = "MATCH (p) RETURN p LIMIT 10"
+const defaultQuery = `MATCH (p)-[e]->(q) RETURN e LIMIT 100 
+UNION ALL 
+MATCH (p) RETURN p as e LIMIT 100`
 const query = ref(defaultQuery)
 
 const dataPanel = ref({})
