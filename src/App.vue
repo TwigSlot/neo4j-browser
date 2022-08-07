@@ -1,25 +1,26 @@
 <template>
   <div id="graph">
-    <v-network-graph ref="graph" v-model:selected-nodes="selectedNodes" v-model:selected-edges="selectedEdges" v-model:zoom-level="zoomLevel" :nodes="nodes"
-      :edges="edges" :layouts="layouts" :configs="configs" :event-handlers="eventHandlers" />
+    <v-network-graph ref="graph" v-model:selected-nodes="selectedNodes" v-model:selected-edges="selectedEdges"
+      v-model:zoom-level="zoomLevel" :nodes="nodes" :edges="edges" :layouts="layouts" :configs="configs"
+      :event-handlers="eventHandlers" />
   </div>
 
   <div class="control-panel">
-    <text style='font-size:50px'>TwigSlot</text>
     <input type='checkbox' id='d3-force-enabled' v-model="d3ForceEnabled" />
     <label for="d3-force-enabled">Auto-organise</label>
     <input type='button' id='home' onclick='document.home()' value='home' />
-    <textarea type="text" id="query-textarea" value="MATCH (p)-[e]->(q)
-RETURN p,e,q
-LIMIT 10" rows="4" cols="40"></textarea>
+    <textarea type="text" id="query-textarea" v-model="query" placeholder="Enter a cypher query" rows="4"
+      cols="40"></textarea>
     <input type="button" id="query-button" value='query' onclick='document.query()' />
   </div>
   <div class="info-panel">
     <div v-if="dataPanel.labels" v-bind:id="dataPanel.id">
       <h3>{{dataPanel.objType}} Properties</h3>
       <ul>
-        <li v-for="(label,index) in dataPanel.labels" :key="index" contenteditable="true" v-on:blur="onInputLabel">{{label}}</li>
-        <li v-if="dataPanel.objType == 'Node'"><input type='button' value='Add Label' onclick='document.addLabel()'/></li>
+        <li v-for="(label,index) in dataPanel.labels" :key="index" contenteditable="true" v-on:blur="onInputLabel">
+          {{label}}</li>
+        <li v-if="dataPanel.objType == 'Node'"><input type='button' value='Add Label' onclick='document.addLabel()' />
+        </li>
       </ul>
       <table>
         <tr>
@@ -35,18 +36,30 @@ LIMIT 10" rows="4" cols="40"></textarea>
             {{value}}
           </th>
         </tr>
-        <tr><input type="button" value="Add Property" onclick="document.addProperty()"/></tr>
+        <tr><input type="button" value="Add Property" onclick="document.addProperty()" /></tr>
       </table>
     </div>
-    <div v-else-if="dataPanel.objType">Creating {{dataPanel.objType}} in Neo4J... Hover over node again later to check</div>
+    <div v-else-if="dataPanel.objType">Creating {{dataPanel.objType}} in Neo4J... Hover over node again later to check
+    </div>
     <div v-else>Hover over a node/edge to check it out</div>
+  </div>
+  <div class="command-panel">
+    Click on a command to replay it
+    <div class="command-list">
+      <ul>
+        <li v-for="(command, index) in commandPanel" :key="index"
+          onclick="document.getElementById('query-textarea').value=this.innerText" class="command">
+          {{command}}
+        </li>
+      </ul>
+    </div>
   </div>
   <text id="graph-div-error">ERROR: This message will disappear when the graph div is resized appropriately.</text>
 </template>
 <script setup>
 
 import neo4j, {session} from 'neo4j-driver'
-const driver = neo4j.driver('bolt://3.236.153.45:7687',
+var driver = neo4j.driver('bolt://3.236.153.45:7687',
   neo4j.auth.basic('neo4j', 'cake-multisystem-breads'))
 
 console.log('connecting to neo4j')
@@ -76,6 +89,7 @@ document.home = function(){
 }
 document.query = async function(){
   const cypherQuery = document.getElementById('query-textarea').value;
+  commandPanel.value.push(cypherQuery)
   const session = driver.session({database: 'neo4j'});
   const tx = session.beginTransaction();
   
@@ -129,7 +143,7 @@ function setHandler(mode) { // event handler (mode is determined by keyboard inp
   initHandler();
   if(mode == 'select'){
     document.fixDataPanel = true;
-    function objSelect(e, objs){
+    const objSelect = function(e, objs){
       console.log(e)
       console.log(objs)
       if(e.length == 0) return;
@@ -256,8 +270,11 @@ const nextEdgeIndex = ref(Object.keys(edges).length + 1)
 const selectedNodes = ref([]);
 const selectedEdges = ref([]);
 const eventLogs = reactive([])
+const defaultQuery = "MATCH (p) RETURN p LIMIT 10"
+const query = ref(defaultQuery)
 
 const dataPanel = ref({})
+const commandPanel = ref([])
 async function writeTransaction(query, params, callback){
   console.log(query, params)
   const session = document.driver.session({
@@ -300,7 +317,6 @@ function updateDataPanel(objInfo, obj){ // TODO actually can just change the par
 
 export default defineComponent({
   data() {
-
     const configs = reactive(
       vNG.defineConfigs({
         view: {
@@ -404,7 +420,8 @@ export default defineComponent({
         node4: { x: 150, y: 50 },
       },
     });
-    return { graph, nodes, edges, configs, layouts, zoomLevel, d3ForceEnabled, eventHandlers, dataPanel }
+    // variables to be used in html
+    return { graph, nodes, edges, configs, layouts, zoomLevel, d3ForceEnabled, eventHandlers, dataPanel, commandPanel, query }
   },
   methods:{
     async deleteNode(nodeId){ // nodeInfo is the Node from Neo4J, nodeVisual is the SVG object representing the node
@@ -567,6 +584,24 @@ export default defineComponent({
   top: 0;
   left: 60%;
   background-color: aliceblue;
+  max-height: 60%;
+  overflow-y: scroll;
+}
+.command-list{
+  height: 90%;
+  background-color:beige;
+}
+.command-panel{
+  width: 40%;
+  position: absolute;
+  bottom: 0;
+  left: 60%;
+  background-color: aquamarine;
+  max-height: 40%;
+  overflow-y: scroll;
+}
+.command{
+  cursor: pointer
 }
 body{
   width:100%;
