@@ -624,7 +624,7 @@ export default defineComponent({
   width: 100%;
   top: 0;
   left: 0;
-  background-color: blueviolet;
+  background-color: yellow;
   /* position: static; */
   float: left;
 }
