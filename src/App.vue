@@ -42,6 +42,7 @@
       <textarea type="text" id="query-textarea" v-model="query" placeholder="Enter a cypher query" rows="4"
         cols="40"></textarea>
       <input type="button" id="query-button" value='query' onclick='document.query()' />
+      <text>If you wish, please <a href="https://github.com/tch1001/vue_twig">contribute</a>! (esp with css)</text>
     </div>
   </div>
   <div class="info-panel-outer">
