@@ -12,7 +12,8 @@
     "jquery": "^3.6.0",
     "neo4j-driver": "^4.4.7",
     "v-network-graph": "^0.6.5",
-    "vue": "^3.2.13"
+    "vue": "^3.2.13",
+    "vue3-keypress": "^4.0.1"
   },
   "devDependencies": {
     "@babel/core": "^7.12.16",
