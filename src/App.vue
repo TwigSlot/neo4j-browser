@@ -6,16 +6,36 @@
   </div>
 
   <div class="control-panel">
-    <div>
-      <label for="server-url">Server URL: </label>
-      <input type="text" id="server-url" value="neo4j+s://ae6e3bf9.databases.neo4j.io"/>
-      <label for="server-username">Username: </label>
-      <input type="text" id="server-username" value="neo4j"/>
-      <label for="server-password">Password: </label>
-      <input type="password" id="server-password" value="pxHM45j7jD54_tvddMklXySWjbafvZfv01-B_GIDpVU"/>
-      <input type="button" value="Connect" onclick="document.connect()"/>
+    <div class="control-panel-login">
+      <table>
+        <tr>
+          <td>
+            <label for="server-url">Server URL: </label>
+          </td>
+          <td>
+            <input type="text" id="server-url" value="neo4j+s://ae6e3bf9.databases.neo4j.io" />
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <label for="server-username">Username: </label>
+          </td>
+          <td>
+            <input type="text" id="server-username" value="neo4j" /><br>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <label for="server-password">Password: </label>
+          </td>
+          <td>
+            <input type="password" id="server-password" value="pxHM45j7jD54_tvddMklXySWjbafvZfv01-B_GIDpVU" />
+          </td>
+        </tr>
+      </table>
     </div>
-    <div>
+    <div class="control-panel-controls">
+      <input type="button" value="Connect" onclick="document.connect()" />
       <input type='checkbox' id='d3-force-enabled' v-model="d3ForceEnabled" />
       <label for="d3-force-enabled">Auto-organise</label>
       <input type='button' id='home' onclick='document.home()' value='home' />
@@ -24,43 +44,47 @@
       <input type="button" id="query-button" value='query' onclick='document.query()' />
     </div>
   </div>
-  <div class="info-panel">
-    <div v-if="dataPanel.labels" v-bind:id="dataPanel.id">
-      <h3>{{dataPanel.objType}} Properties</h3>
-      <ul>
-        <li v-for="(label,index) in dataPanel.labels" :key="index" contenteditable="true" v-on:blur="onInputLabel">
-          {{label}}</li>
-        <li v-if="dataPanel.objType == 'Node'"><input type='button' value='Add Label' onclick='document.addLabel()' />
-        </li>
-      </ul>
-      <table>
-        <tr>
-          <th>&lt;id&gt;</th>
-          <th>{{dataPanel.id}}</th>
-        </tr>
-        <!-- <p>{{dataPanel.properties}}</p> -->
-        <tr v-for="(value, property) in dataPanel.properties" :key="value">
-          <th contenteditable="true" v-on:blur="onInputPropertyName">
-            {{property}}
-          </th>
-          <th v-bind:id="'valueOf'+property" contenteditable="true" v-on:blur="onInputPropertyValue">
-            {{value}}
-          </th>
-        </tr>
-        <tr><input type="button" value="Add Property" onclick="document.addProperty()" /></tr>
-      </table>
+  <div class="info-panel-outer">
+    <div class="info-panel-inner">
+      <div v-if="dataPanel.labels" v-bind:id="dataPanel.id" class="info-panel-inner-details-id">
+        <h3>{{ dataPanel.objType }} Properties</h3>
+        <ul>
+          <li v-for="(label, index) in dataPanel.labels" :key="index" contenteditable="true" v-on:blur="onInputLabel">
+            {{ label }}</li>
+          <li v-if="dataPanel.objType == 'Node'"><input type='button' value='Add Label' onclick='document.addLabel()' />
+          </li>
+        </ul>
+        <table>
+          <tr>
+            <th>&lt;id&gt;</th>
+            <th>{{ dataPanel.id }}</th>
+          </tr>
+          <!-- <p>{{dataPanel.properties}}</p> -->
+          <tr v-for="(value, property) in dataPanel.properties" :key="value">
+            <th contenteditable="true" v-on:blur="onInputPropertyName">
+              {{ property }}
+            </th>
+            <th v-bind:id="'valueOf' + property" contenteditable="true" v-on:blur="onInputPropertyValue">
+              {{ value }}
+            </th>
+          </tr>
+          <tr><input type="button" value="Add Property" onclick="document.addProperty()" /></tr>
+        </table>
+      </div>
+      <div v-else-if="dataPanel.objType">Creating {{ dataPanel.objType }} in Neo4J... Hover over node again later to
+        check
+      </div>
+      <div v-else>Hover over a node/edge to check it out</div>
     </div>
-    <div v-else-if="dataPanel.objType">Creating {{dataPanel.objType}} in Neo4J... Hover over node again later to check
-    </div>
-    <div v-else>Hover over a node/edge to check it out</div>
   </div>
+
   <div class="command-panel">
     Click on a command to replay it
     <div class="command-list">
       <ul>
         <li v-for="(command, index) in commandPanel" :key="index"
           onclick="document.getElementById('query-textarea').value=this.innerText" class="command">
-          {{command}}
+          {{ command }}
         </li>
       </ul>
     </div>
@@ -69,86 +93,102 @@
 </template>
 <script setup>
 
-import neo4j, {session} from 'neo4j-driver'
-document.connect = async function(){
+import neo4j, { session } from 'neo4j-driver'
+document.connect = async function () {
   const serverURL = document.getElementById('server-url').value;
   const serverUsername = document.getElementById('server-username').value;
   const serverPassword = document.getElementById('server-password').value;
   console.log('connecting to neo4j')
   document.driver = neo4j.driver(serverURL,
     neo4j.auth.basic(serverUsername, serverPassword))
-  document.driver.verifyConnectivity().then(()=>{
+  document.driver.verifyConnectivity().then(() => {
     console.log('connected');
     window.vue.query = defaultQuery;
     document.query();
   });
 }
 // document.connect();
-document.home = function(){
-  for(var j=0; j<1; ++j){ // TODO need to press home button twice
+document.home = function () {
+  for (var j = 0; j < 1; ++j) { // TODO need to press home button twice
     const inf = 1000000000000;
     var minX = inf, minY = inf, maxX = -inf, maxY = -inf;
-    for(const i in window.vue.layouts.nodes){
-      minX = Math.min(minX,window.vue.layouts.nodes[i].x)
-      minY = Math.min(minY,window.vue.layouts.nodes[i].y)
-      maxX = Math.max(maxX,window.vue.layouts.nodes[i].x)
-      maxY = Math.max(maxY,window.vue.layouts.nodes[i].y)
+    for (const i in window.vue.layouts.nodes) {
+      minX = Math.min(minX, window.vue.layouts.nodes[i].x)
+      minY = Math.min(minY, window.vue.layouts.nodes[i].y)
+      maxX = Math.max(maxX, window.vue.layouts.nodes[i].x)
+      maxY = Math.max(maxY, window.vue.layouts.nodes[i].y)
     }
     const padding = 100;
     window.vue.graph.setViewBox({
-      left: minX-padding,
-      top: minY-padding,
-      right: maxX+padding*5,
-      bottom: maxY+padding,
+      left: minX - padding,
+      top: minY - padding,
+      right: maxX + padding * 5,
+      bottom: maxY + padding,
     })
   }
 }
 
-document.query = async function(){
+document.query = async function () {
   const cypherQuery = window.vue.query;
   commandPanel.value.push(cypherQuery)
-  const session = document.driver.session({database: 'neo4j'});
+  const session = document.driver.session({ database: 'neo4j' });
   const tx = session.beginTransaction();
-  
+
   const res = await tx.run(cypherQuery);
 
-  for(let i in window.vue.nodes) delete window.vue.nodes[i]
-  for(let i in window.vue.edges) delete window.vue.edges[i]
+  for (let i in window.vue.nodes) delete window.vue.nodes[i]
+  for (let i in window.vue.edges) delete window.vue.edges[i]
   const displayableProperties = ['title', 'name']
   res.records.forEach((record, index) => {
     var displayName = `Node ${index}`
-    for(const key of record.keys){
+    for (const key of record.keys) {
       const field = record._fields[record._fieldLookup[key]]
-      if(field.constructor.name == 'Node'){
-        for(const displayableProperty of displayableProperties){
-          if(displayableProperty in field.properties){
+      if (field.constructor.name == 'Node') {
+        for (const displayableProperty of displayableProperties) {
+          if (displayableProperty in field.properties) {
             displayName = field.properties[displayableProperty]
             break;
           }
         }
-        var newVertex = addVertex(0,0,field.identity.toNumber())
+        var newVertex = addVertex(0, 0, field.identity.toNumber())
         newVertex.objInfo = field;
         newVertex.name = displayName;
-      }else if(field.constructor.name == 'Relationship'){
-        console.log(field)
+      } else if (field.constructor.name == 'Relationship') {
         const s = field.start.toNumber().toString()
         const t = field.end.toNumber().toString()
-        var newEdge = document.addEdge(s,t);
+        var newEdge = document.addEdge(s, t);
         newEdge.objInfo = field;
-      }else if(field.constructor.name == 'Integer'){
+      } else if (field.constructor.name == 'Integer') {
         continue;
       }
     }
   })
   session.close();
 }
-document.addLabel = function(){
+document.addLabel = function () {
   dataPanel.value['labels'].push('NewLabel');
 }
-document.addProperty = function(){
-  dataPanel.value['properties']['NewPropertyName'] = 'NewPropertyValue';
+document.addProperty = async function () {
+  // dataPanel.value['properties']['NewPropertyName'] = 'NewPropertyValue';
+  // const objId = document.getElementsByClassName('info-panel-inner-details-id')[0].getAttribute('id')
+  const objId = dataPanel.value['obj'].objInfo.identity.toNumber();
+  const objType = dataPanel.value['objType']
+  var query;
+  if (objType == 'Relationship') {
+    query = "MATCH (a)-[n]->(b) WHERE id(n)=$objId"
+  } else if (objType == 'Node') {
+    query = "MATCH (n) WHERE id(n)=$objId"
+  }
+  query += " SET n.NewPropertyName = 'NewPropertyValue' RETURN n"
+  const curObj = dataPanel.value['obj']
+  await writeTransaction(query, { objId: objId },
+    (res) => {
+      curObj.objInfo = res.records[0].get('n')
+      // console.log(curObj, dataPanel.value['obj'], 'ARE NOT NECESSARILY THE SAME')
+      if (curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo, curObj)
+    });
 }
-function initHandler(){
+function initHandler() {
   document.fixDataPanel = false;
   document.viewClick = () => { };
   document.nodeSelect = () => { };
@@ -158,19 +198,18 @@ function initHandler(){
 initHandler();
 function setHandler(mode) { // event handler (mode is determined by keyboard input)
   initHandler();
-  if(mode == 'select'){
+  if (mode == 'select') {
     document.fixDataPanel = true;
-    const objSelect = function(e, objs){
-      console.log(e)
-      console.log(objs)
-      if(e.length == 0) return;
+    const objSelect = function (e, objs) {
+      if (e.length == 0) return;
       document.fixDataPanel = false;
-      window.vue.updateDataPanel(objs[e[e.length-1]].objInfo, objs[e[e.length-1]])
+      window.vue.updateDataPanel(objs[e[e.length - 1]].objInfo, objs[e[e.length - 1]])
+      console.log(dataPanel.value['obj'])
       document.fixDataPanel = true;
     }
     document.nodeSelect = (e) => { objSelect(e, window.vue.nodes); }
     document.edgeSelect = (e) => { objSelect(e, window.vue.edges); }
-  }else if (mode == 'vertex') { // adding vertex
+  } else if (mode == 'vertex') { // adding vertex
     document.viewClick = addVertexWithMouse;
   } else if (mode == 'edge') {
     document.nodeClick = addEdgePrep; // addEdgePrep is a fn that handles one-by-one selection of nodes
@@ -183,12 +222,12 @@ function setHandler(mode) { // event handler (mode is determined by keyboard inp
 }
 setHandler('select') // default mode
 document.onkeydown = function (e) {
-  if(e.key == 's') setHandler('select')
+  if (e.key == 's') setHandler('select')
   else if (e.key == 'v') setHandler('vertex')
   else if (e.key == 'e') setHandler('edge')
   else if (e.key == 'Delete') document.deleteObjects();
 }
-document.deleteObjects = function(){
+document.deleteObjects = function () {
   const total = selectedNodes.value.length + selectedEdges.value.length
   if (total > 0) {
     if (confirm(`Confirm deletion of ${total} objects?`)) {
@@ -207,24 +246,23 @@ async function addEdgePrep(e) {
   if (document.sourceNode == null) {
     document.sourceNode = e.node;
   } else {
-    const newEdge = document.addEdge(document.sourceNode,e.node)
+    const newEdge = document.addEdge(document.sourceNode, e.node)
     document.sourceNode = null;
-    console.log(newEdge)
 
     const s = window.vue.nodes[newEdge.source].objInfo.identity.toNumber();
     const t = window.vue.nodes[newEdge.target].objInfo.identity.toNumber();
     const query = 'MATCH (a), (b) WHERE id(a)=$s AND id(b)=$t CREATE (a)-[e:Edge]->(b) RETURN e'
 
-    await writeTransaction(query, {s:s, t:t}, 
+    await writeTransaction(query, { s: s, t: t },
       (res) => {
         newEdge.objInfo = res.records[0].get('e')
-        updateDataPanel(newEdge.objInfo, newEdge) 
+        updateDataPanel(newEdge.objInfo, newEdge)
       });
   }
 }
-function addVertex(x,y,nodeId){
+function addVertex(x, y, nodeId) {
   // add node and its position
-  if(nodeId == null){
+  if (nodeId == null) {
     nodeId = `node${nextNodeIndex.value}`
     nextNodeIndex.value++
   }
@@ -240,7 +278,7 @@ async function addVertexWithMouse(e) {
   const svgPoint = window.vue.graph.translateFromDomToSvgCoordinates(point)
   const newNode = addVertex(svgPoint.x, svgPoint.y);
   const query = "CREATE (n) SET n.name=$newName RETURN n"
-  await window.vue.writeTransaction(query, {newName: newNode.name},
+  await window.vue.writeTransaction(query, { newName: newNode.name },
     (res) => {
       newNode.objInfo = res.records[0].get('n')
       updateDataPanel(newNode.objInfo, newNode)
@@ -253,7 +291,6 @@ document.removeNode = async function () {
   }
 }
 document.removeEdge = function () {
-  console.log(selectedEdges)
   for (const edgeId of selectedEdges.value) {
     window.vue.deleteEdge(edgeId)
   }
@@ -294,7 +331,7 @@ const query = ref(defaultQuery)
 
 const dataPanel = ref({})
 const commandPanel = ref([])
-async function writeTransaction(query, params, callback){
+async function writeTransaction(query, params, callback) {
   console.log(query, params)
   const session = document.driver.session({
     database: 'neo4j',
@@ -305,31 +342,28 @@ async function writeTransaction(query, params, callback){
   })
   // Close the sesssion
   session.close()
-  if(callback) callback(res);
-  console.log(res)
+  if (callback) callback(res);
   return res
 }
-function updateDataPanel(objInfo, obj){ // TODO actually can just change the params to obj
-  console.log(document.fixDataPanel, selectedNodes.value)
+function updateDataPanel(objInfo, obj) { // TODO actually can just change the params to obj
   const total = selectedNodes.value.length + selectedEdges.value.length
-  if(document.fixDataPanel && total > 0){ 
+  if (document.fixDataPanel && total > 0) {
     return
   }
-  console.log(obj)
-  if(!objInfo) return;
+  if (!objInfo) return;
   dataPanel.value = {}
   dataPanel.value['objType'] = objInfo.constructor.name
-  if(obj){
+  if (obj) {
     dataPanel.value['obj'] = obj
   }
   dataPanel.value['id'] = objInfo.identity.toNumber();
   dataPanel.value['properties'] = objInfo.properties;
-  if(objInfo.constructor.name == 'Node'){
+  if (objInfo.constructor.name == 'Node') {
     dataPanel.value['labels'] = objInfo.labels;
-  }else if(objInfo.constructor.name == 'Relationship'){
+  } else if (objInfo.constructor.name == 'Relationship') {
     dataPanel.value['labels'] = [objInfo.type];
-  }else{
-    console.log("NEITHER???")
+  } else {
+    return;
   }
 }
 
@@ -416,12 +450,12 @@ export default defineComponent({
           document.nodeClick(event);
         } else if (type == 'node:select') {
           document.nodeSelect(event);
-        } else if (type == 'node:pointerover'){ 
+        } else if (type == 'node:pointerover') {
           const obj = nodes[event.node]
           updateDataPanel(obj.objInfo, obj)
-        } else if(type == 'node:pointerout'){
+        } else if (type == 'node:pointerout') {
           // console.log('i')
-        } else if(type == 'edge:pointerover'){
+        } else if (type == 'edge:pointerover') {
           const obj = edges[event.edge]
           updateDataPanel(obj.objInfo, obj)
         } else if (type == 'edge:select') {
@@ -442,105 +476,96 @@ export default defineComponent({
     // variables to be used in html
     return { graph, nodes, edges, configs, layouts, zoomLevel, d3ForceEnabled, eventHandlers, dataPanel, commandPanel, query }
   },
-  methods:{
-    async deleteNode(nodeId){ // nodeInfo is the Node from Neo4J, nodeVisual is the SVG object representing the node
+  methods: {
+    async deleteNode(nodeId) { // nodeInfo is the Node from Neo4J, nodeVisual is the SVG object representing the node
       const objId = nodes[nodeId].objInfo.identity.toNumber();
       const query = `MATCH (n) WHERE id(n)=$objId DETACH DELETE n`
-      await writeTransaction(query, { objId: objId }, 
-        (res)=>{
+      await writeTransaction(query, { objId: objId },
+        (res) => {
           delete nodes[nodeId]
         });
     },
-    async deleteEdge(edgeId){
+    async deleteEdge(edgeId) {
       const objId = edges[edgeId].objInfo.identity.toNumber();
       const query = `MATCH (a)-[n]->(b) WHERE id(n)=$objId DELETE n`
-      await writeTransaction(query, { objId: objId }, 
-        (res)=>{
+      await writeTransaction(query, { objId: objId },
+        (res) => {
           delete edges[edgeId]
         });
     },
-    getPropertyNameValue(row){ // row is the row of the table
+    getPropertyNameValue(row) { // row is the row of the table
       const objId = parseInt(row.parentElement.parentElement.id); // id in neo4j
       return [objId, row.children[0].innerText, row.children[1].innerText];
     },
-    async onInputPropertyName(e){ // edit property name
+    async onInputPropertyName(e) { // edit property name
       document.deleteMode = true;
       let [objId, newPropertyName, newPropertyValue] = this.getPropertyNameValue(e.target.parentElement)
       var propertyIdx = Array.prototype.indexOf.call(e.target.parentElement.parentElement.children, e.target.parentElement)
-      propertyIdx-=1; // for the <id> row which doesnt change
+      propertyIdx -= 1; // for the <id> row which doesnt change
       const propertyNames = Object.keys(dataPanel.value['properties'])
-      console.log(propertyIdx, propertyNames)
       const oldPropertyName = propertyNames[propertyIdx]
       var query;
       if (dataPanel.value['objType'] == 'Relationship') {
         query = `MATCH (a)-[n]->(b) WHERE id(n)=$objId`
-      }else if(dataPanel.value['objType'] == 'Node'){
+      } else if (dataPanel.value['objType'] == 'Node') {
         query = `MATCH (n) WHERE id(n)=$objId`
-      }else{     
-        console.log('neither node nor edge')
+      } else {
         return;
       }
-      if (oldPropertyName == '' && newPropertyName == '') { // changed my mind about adding a new property
-        query += ` RETURN n`
-      } else if (oldPropertyName == '') { // adding a new property
-        query += ` SET n.\`${newPropertyName}\`=$newPropertyValue RETURN n`
-      } else if (newPropertyName == '') { // removing an old property
+      if (newPropertyName == '') { // removing an old property
         query += ` REMOVE n.\`${oldPropertyName}\` RETURN n`
       } else if (oldPropertyName == newPropertyName) { // either a new property or there are no updates
-        query += ` SET n.\`${newPropertyName}\` = $newPropertyValue RETURN n` 
+        return;
       } else { // updating the name of an old property
         query += ` SET n.\`${newPropertyName}\`=n.\`${oldPropertyName}\` REMOVE n.\`${oldPropertyName}\` RETURN n`
       }
       const curObj = dataPanel.value['obj']
-      console.log(curObj, 'is the current obj')
-      await writeTransaction(query, { objId: objId , newPropertyValue: newPropertyValue}, 
-        (res)=>{
+      await writeTransaction(query, { objId: objId, newPropertyValue: newPropertyValue },
+        (res) => {
           curObj.objInfo = res.records[0].get('n')
           // console.log(curObj, dataPanel.value['obj'], 'ARE NOT NECESSARILY THE SAME')
-          if(curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo, curObj) 
+          if (curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo, curObj)
         });
       // const p = res.records[0].get('n')
       // dataPanel.value['obj'].objInfo = p
     },
-    async onInputPropertyValue(e){ // edit property value
+    async onInputPropertyValue(e) { // edit property value
       document.deleteMode = true;
       // name and value of altered property
       let [objId, propertyName, propertyValue] = this.getPropertyNameValue(e.target.parentElement)
-      console.log(propertyName, propertyValue, dataPanel.value['objType'], objId);
+      if (propertyName == '') return; // in the process of deleting it
       var query;
       if (dataPanel.value['objType'] == 'Relationship') {
         query = `MATCH (a)-[n]->(b) WHERE id(n)=$objId`
-      }else if(dataPanel.value['objType'] == 'Node'){
+      } else if (dataPanel.value['objType'] == 'Node') {
         query = `MATCH (n) WHERE id(n)=$objId`
-      }else{
-        console.log('neither node nor rls ???')
+      } else {
+        return;
       }
-      query += ` SET n.\`${propertyName}\`=$propertyValue RETURN n`
+      query += ` SET n.\`${propertyName}\`=$propertyValue RETURN n` // TODO something went wrong here, when i press tab from name
       const curObj = dataPanel.value['obj'];
-      await writeTransaction(query, {objId: objId, propertyName: propertyName, propertyValue: propertyValue},
+      await writeTransaction(query, { objId: objId, propertyName: propertyName, propertyValue: propertyValue },
         (res) => {
           curObj.objInfo = res.records[0].get('n')
-          if(curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo, curObj);
+          if (curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo, curObj);
         });
     },
-   async onInputLabel(e){
-      console.log(e.target);
+    async onInputLabel(e) {
       const labelIdx = Array.prototype.indexOf.call(e.target.parentElement.children, e.target)
       const oldLabel = dataPanel.value['labels'][labelIdx];
       var newLabel = e.target.textContent;
-      console.log(oldLabel, newLabel);
-      if(oldLabel == newLabel) return;
+      if (oldLabel == newLabel) return;
       const objId = parseInt(e.target.parentElement.parentElement.id);
-      if(newLabel == ''){
-        if(dataPanel.value['objType'] == 'Relationship'){
+      if (newLabel == '') {
+        if (dataPanel.value['objType'] == 'Relationship') {
           newLabel = 'Edge'
-        }else{
+        } else {
           const query = `MATCH (n) WHERE id(n)=$objId REMOVE n:\`${oldLabel}\` RETURN n`
           const curObj = dataPanel.value['obj']
-          await writeTransaction(query, {objId: objId, oldLabel: oldLabel}, 
-            (res) =>{
+          await writeTransaction(query, { objId: objId, oldLabel: oldLabel },
+            (res) => {
               curObj.objInfo = res.records[0].get('n')
-              if(curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo, curObj);
+              if (curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo, curObj);
             });
           return;
         }
@@ -548,13 +573,13 @@ export default defineComponent({
       var query;
       if (dataPanel.value['objType'] == 'Relationship') {
         query = `MATCH (a)-[n2]->(b) WHERE id(n2)=$objId CREATE (a)-[n:\`${newLabel}\`]->(b) SET n=n2 WITH n,n2,a,b DELETE n2 RETURN a,n,b`
-      }else if(dataPanel.value['objType'] == 'Node'){
+      } else if (dataPanel.value['objType'] == 'Node') {
         query = `MATCH (n) WHERE id(n)=$objId REMOVE n:\`${oldLabel}\` SET n:\`${newLabel}\` RETURN n`
-      }else{
-        console.log('neither node nor rls ???')
+      } else {
+        return;
       }
       const curObj = dataPanel.value['obj'];
-      await writeTransaction(query, {objId: objId, newLabel: newLabel, oldLabel: oldLabel},
+      await writeTransaction(query, { objId: objId, newLabel: newLabel, oldLabel: oldLabel },
         (res) => {
           curObj.objInfo = res.records[0].get('n')
           if (curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo, curObj);
@@ -563,15 +588,15 @@ export default defineComponent({
   },
   mounted() {
     document.getElementById('graph-div-error').remove()
-    function resize(ev){
+    function resize(ev) {
       var graph = document.getElementById('graph');
       const windowHeight = window.innerHeight;
       const windowWidth = window.innerWidth;
       const titleHeight = 0;
       graph.style.setProperty('height', `${windowHeight - titleHeight}px`)
-      graph.style.setProperty('width', `${windowWidth }px`)
+      graph.style.setProperty('width', `${windowWidth}px`)
     }
-    window.addEventListener('resize',resize);
+    window.addEventListener('resize', resize);
     resize();
     window.vue = this
   }
@@ -588,29 +613,54 @@ export default defineComponent({
   background-color: aqua;
   margin: 0px;
   height: 10px;
+  /* will be set inside js */
   overflow: hidden;
+  position: fixed;
+  z-index: -1;
+  /* visibility: hidden; */
 }
-.control-panel{
+
+.control-panel {
   width: 100%;
-  position: absolute;
   top: 0;
   left: 0;
-  background-color: antiquewhite;
+  background-color: blueviolet;
+  /* position: static; */
+  float: left;
 }
-.info-panel{
+
+.control-panel-controls {
+  width: auto;
+  float: left;
+}
+
+.control-panel-login {
+  width: auto;
+  float: left;
+}
+
+.info-panel-outer {
+  background-color: greenyellow;
+  position: relative;
+  clear: left;
+  float: right;
   width: 40%;
-  position: absolute;
-  top: 0;
-  left: 60%;
+  /* background-color: rgba(0,0,0,0); */
+}
+
+.info-panel-inner {
+  position: relative;
   background-color: aliceblue;
   max-height: 60%;
   overflow-y: scroll;
 }
-.command-list{
+
+.command-list {
   height: 90%;
-  background-color:beige;
+  background-color: beige;
 }
-.command-panel{
+
+.command-panel {
   width: 40%;
   position: absolute;
   bottom: 0;
@@ -619,12 +669,14 @@ export default defineComponent({
   max-height: 40%;
   overflow-y: scroll;
 }
-.command{
+
+.command {
   cursor: pointer
 }
-body{
-  width:100%;
-  height:100%;
-  margin:0;
+
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
 }
 </style>
