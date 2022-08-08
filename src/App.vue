@@ -204,7 +204,7 @@ function setHandler(mode) { // event handler (mode is determined by keyboard inp
     const objSelect = function (e, objs) {
       if (e.length == 0) return;
       document.fixDataPanel = false;
-      window.vue.updateDataPanel(objs[e[e.length - 1]].objInfo, objs[e[e.length - 1]])
+      updateDataPanel(objs[e[e.length - 1]].objInfo, objs[e[e.length - 1]])
       console.log(dataPanel.value['obj'])
       document.fixDataPanel = true;
     }
@@ -279,7 +279,7 @@ async function addVertexWithMouse(e) {
   const svgPoint = window.vue.graph.translateFromDomToSvgCoordinates(point)
   const newNode = addVertex(svgPoint.x, svgPoint.y);
   const query = "CREATE (n) SET n.name=$newName RETURN n"
-  await window.vue.writeTransaction(query, { newName: newNode.name },
+  await writeTransaction(query, { newName: newNode.name },
     (res) => {
       newNode.objInfo = res.records[0].get('n')
       updateDataPanel(newNode.objInfo, newNode)
@@ -478,6 +478,7 @@ export default defineComponent({
     return { graph, nodes, edges, configs, layouts, zoomLevel, d3ForceEnabled, eventHandlers, dataPanel, commandPanel, query }
   },
   methods: {
+    updateDataPanel,
     async deleteNode(nodeId) { // nodeInfo is the Node from Neo4J, nodeVisual is the SVG object representing the node
       const objId = nodes[nodeId].objInfo.identity.toNumber();
       const query = `MATCH (n) WHERE id(n)=$objId DETACH DELETE n`
