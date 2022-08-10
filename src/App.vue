@@ -1,6 +1,4 @@
-
 <template>
-  <KeyBackground/>
   <div id="graph">
     <v-network-graph ref="graph" v-model:selected-nodes="selectedNodes" v-model:selected-edges="selectedEdges"
       v-model:zoom-level="zoomLevel" :nodes="nodes" :edges="edges" :layouts="layouts" :configs="configs"
@@ -97,7 +95,7 @@
 
 
 <script setup>
-document.home = function() {
+document.home = function () {
   for (var j = 0; j < 1; ++j) { // TODO need to press home button twice
     const inf = 1000000000000;
     var minX = inf, minY = inf, maxX = -inf, maxY = -inf;
@@ -117,23 +115,21 @@ document.home = function() {
     })
   }
 }
-// document.onkeydown = function (e) {
-//   if (e.key == 's') setHandler('select')
-//   else if (e.key == 'v') setHandler('vertex')
-//   else if (e.key == 'e') setHandler('edge')
-//   else if (e.key == 'Delete') document.deleteObjects();
-// }
+document.onkeydown = function (e) {
+  if (e.key == 's') setHandler('select')
+  else if (e.key == 'v') setHandler('vertex')
+  else if (e.key == 'e') setHandler('edge')
+  // else if (e.key == 'Delete') deleteObjects();
+}
 </script>
 <script>
 import { defineComponent, reactive, ref, computed } from "vue"
 import * as vNG from "v-network-graph"
-import { useKeypress } from "vue3-keypress"
 import {
   ForceLayout,
 } from "v-network-graph/lib/force-layout"
 
 import neo4j, { session } from 'neo4j-driver'
-import { isAccessor } from "@babel/types"
 const original_nodes = {
   node1: { name: "Node 1" },
   node2: { name: "Node 2" },
@@ -161,6 +157,40 @@ const query = ref(defaultQuery)
 const dataPanel = ref({})
 const commandPanel = ref([])
 const zoomLevel = ref(1.5)
+
+var deleteMode, sourceNode, fixDataPanel, viewClick, nodeSelect, nodeClick, edgeSelect;
+initHandler();
+const eventHandlers = {
+  // wildcard: capture all events
+  "*": (type, event) => {
+    // if (eventLogs.length > EVENTS_COUNT) {
+    //   eventLogs.splice(EVENTS_COUNT, eventLogs.length - EVENTS_COUNT)
+    // }
+    // if (event instanceof Object && "event" in event) {
+    //   Object.assign(event, { event: "(...)" })
+    // }
+    // eventLogs.unshift([type, JSON.stringify(event)])
+    if (type == 'view:click') {
+      viewClick(event.event);
+    } else if (type == 'node:click') {
+      nodeClick(event);
+    } else if (type == 'node:select') {
+      nodeSelect(event);
+    } else if (type == 'node:pointerover') {
+      const obj = nodes[event.node]
+      updateDataPanel(obj.objInfo, obj)
+    } else if (type == 'node:pointerout') {
+      // console.log('i')
+    } else if (type == 'edge:pointerover') {
+      const obj = edges[event.edge]
+      updateDataPanel(obj.objInfo, obj)
+    } else if (type == 'edge:select') {
+      edgeSelect(event)
+      // console.log(type, event)
+    }
+  },
+}
+
 const layouts = reactive({
   nodes: {
     node1: { x: 0, y: 0 },
@@ -169,7 +199,37 @@ const layouts = reactive({
     node4: { x: 150, y: 50 },
   },
 });
-
+function initHandler() {
+  fixDataPanel = false;
+  viewClick = (e) => { };
+  nodeSelect = (e) => { };
+  nodeClick = (e) => { };
+  edgeSelect = (e) => { };
+}
+function setHandler(mode) { // event handler (mode is determined by keyboard input)
+  initHandler();
+  if (mode == 'select') {
+    document.fixDataPanel = true;
+    const objSelect = function (e, objs) {
+      if (e.length == 0) return;
+      document.fixDataPanel = false;
+      updateDataPanel(objs[e[e.length - 1]].objInfo, objs[e[e.length - 1]])
+      console.log(dataPanel.value['obj'])
+      document.fixDataPanel = true;
+    }
+    nodeSelect = (e) => { objSelect(e, nodes); }
+    edgeSelect = (e) => { objSelect(e, edges); }
+  } else if (mode == 'vertex') { // adding vertex
+    // viewClick = addVertexWithMouse;
+  } else if (mode == 'edge') {
+    nodeClick = this.addEdgePrep; // addEdgePrep is a fn that handles one-by-one selection of nodes
+    nodeSelect = (e) => { // this one handles rect selection
+      // if (e.length == 0) sourceNode = null
+      // else if (e.length == 2) this.addEdge(e[0], e[1])
+    };
+    return;
+  }
+}
 function updateDataPanel(objInfo, obj) { // TODO actually can just change the params to obj
   const total = selectedNodes.value.length + selectedEdges.value.length
   if (document.fixDataPanel && total > 0) {
@@ -192,27 +252,6 @@ function updateDataPanel(objInfo, obj) { // TODO actually can just change the pa
   }
 }
 export default defineComponent({
-  components: {
-    KeyBackground,
-  },
-  setup(){
-    const pressedKeycode = ref(null);
-    const isActiveRef = ref(true);
-    const successCallback = ({keyCode}) => { 
-      console.log(keyCode)
-      pressedKeycode.value = keyCode
-    }
-    useKeypress({
-      keyEvent: "keydown",
-      keyBinds: [
-        {
-          keyCode: "left",
-          success: successCallback
-        },
-      ],
-      isActive: isActiveRef
-    })
-  },
   data() {
     const configs = reactive(
       vNG.defineConfigs({
@@ -278,36 +317,6 @@ export default defineComponent({
 
     const EVENTS_COUNT = 6
 
-    const eventHandlers = {
-      // wildcard: capture all events
-      "*": (type, event) => {
-        // if (eventLogs.length > EVENTS_COUNT) {
-        //   eventLogs.splice(EVENTS_COUNT, eventLogs.length - EVENTS_COUNT)
-        // }
-        // if (event instanceof Object && "event" in event) {
-        //   Object.assign(event, { event: "(...)" })
-        // }
-        // eventLogs.unshift([type, JSON.stringify(event)])
-        if (type == 'view:click') {
-          document.viewClick(event.event);
-        } else if (type == 'node:click') {
-          document.nodeClick(event);
-        } else if (type == 'node:select') {
-          document.nodeSelect(event);
-        } else if (type == 'node:pointerover') {
-          const obj = nodes[event.node]
-          updateDataPanel(obj.objInfo, obj)
-        } else if (type == 'node:pointerout') {
-          // console.log('i')
-        } else if (type == 'edge:pointerover') {
-          const obj = edges[event.edge]
-          updateDataPanel(obj.objInfo, obj)
-        } else if (type == 'edge:select') {
-          document.edgeSelect(event)
-          // console.log(type, event)
-        }
-      },
-    }
 
     // variables to be used in html
     return {
@@ -318,7 +327,7 @@ export default defineComponent({
     }
   },
   methods: {
-    updateDataPanel, 
+    updateDataPanel,
     addVertex(x, y, nodeId) {
       // add node and its position
       if (nodeId == null) {
@@ -345,7 +354,7 @@ export default defineComponent({
         var displayName = `Node ${index}`
         for (const key of record.keys) {
           const field = record._fields[record._fieldLookup[key]]
-          if (field.constructor.name == 'Node') {
+          if (Object.prototype.hasOwnProperty.call(field.__proto__, "__isNode__")) {
             for (const displayableProperty of displayableProperties) {
               if (displayableProperty in field.properties) {
                 displayName = field.properties[displayableProperty]
@@ -355,13 +364,11 @@ export default defineComponent({
             var newVertex = this.addVertex(0, 0, field.identity.toNumber())
             newVertex.objInfo = field;
             newVertex.name = displayName;
-          } else if (field.constructor.name == 'Relationship') {
+          } else if (Object.prototype.hasOwnProperty.call(field.__proto__, "__isRelationship__")) {
             const s = field.start.toNumber().toString()
             const t = field.end.toNumber().toString()
             var newEdge = this.addEdge(s, t);
             newEdge.objInfo = field;
-          } else if (field.constructor.name == 'Integer') {
-            continue;
           }
         }
       })
@@ -403,44 +410,15 @@ export default defineComponent({
           if (curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo, curObj)
         });
     },
-    initHandler() {
-      document.fixDataPanel = false;
-      document.viewClick = (e) => { };
-      document.nodeSelect = (e) => { };
-      document.nodeClick = (e) => { };
-      document.edgeSelect = (e) => { };
-    },
-    setHandler(mode) { // event handler (mode is determined by keyboard input)
-      this.initHandler();
-      if (mode == 'select') {
-        document.fixDataPanel = true;
-        const objSelect = function (e, objs) {
-          if (e.length == 0) return;
-          document.fixDataPanel = false;
-          updateDataPanel(objs[e[e.length - 1]].objInfo, objs[e[e.length - 1]])
-          console.log(dataPanel.value['obj'])
-          document.fixDataPanel = true;
-        }
-        document.nodeSelect = (e) => { objSelect(e, nodes); }
-        document.edgeSelect = (e) => { objSelect(e, edges); }
-      } else if (mode == 'vertex') { // adding vertex
-        document.viewClick = this.addVertexWithMouse;
-      } else if (mode == 'edge') {
-        document.nodeClick = this.addEdgePrep; // addEdgePrep is a fn that handles one-by-one selection of nodes
-        document.nodeSelect = (e) => { // this one handles rect selection
-          if (e.length == 0) document.sourceNode = null
-          else if (e.length == 2) this.addEdge(e[0], e[1])
-        };
-        return;
-      }
-    },
+
+
 
     deleteObjects() {
       const total = selectedNodes.value.length + selectedEdges.value.length
       if (total > 0) {
         if (confirm(`Confirm deletion of ${total} objects?`)) {
-          document.removeNode();
-          document.removeEdge();
+          // removeNode();
+          // removeEdge();
         }
       }
     },
@@ -451,11 +429,11 @@ export default defineComponent({
       return edges[edgeId]
     },
     async addEdgePrep(e) {
-      if (document.sourceNode == null) {
-        document.sourceNode = e.node;
+      if (sourceNode == null) {
+        sourceNode = e.node;
       } else {
-        const newEdge = this.addEdge(document.sourceNode, e.node)
-        document.sourceNode = null;
+        const newEdge = this.addEdge(sourceNode, e.node)
+        sourceNode = null;
 
         const s = nodes[newEdge.source].objInfo.identity.toNumber();
         const t = nodes[newEdge.target].objInfo.identity.toNumber();
@@ -528,7 +506,7 @@ export default defineComponent({
       return [objId, row.children[0].innerText, row.children[1].innerText];
     },
     async onInputPropertyName(e) { // edit property name
-      document.deleteMode = true;
+      deleteMode = true;
       let [objId, newPropertyName, newPropertyValue] = this.getPropertyNameValue(e.target.parentElement)
       var propertyIdx = Array.prototype.indexOf.call(e.target.parentElement.parentElement.children, e.target.parentElement)
       propertyIdx -= 1; // for the <id> row which doesnt change
@@ -560,7 +538,7 @@ export default defineComponent({
       // dataPanel.value['obj'].objInfo = p
     },
     async onInputPropertyValue(e) { // edit property value
-      document.deleteMode = true;
+      deleteMode = true;
       // name and value of altered property
       let [objId, propertyName, propertyValue] = this.getPropertyNameValue(e.target.parentElement)
       if (propertyName == '') return; // in the process of deleting it
