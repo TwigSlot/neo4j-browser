@@ -39,7 +39,7 @@
       <input type='checkbox' id='d3-force-enabled' v-model="d3ForceEnabled" />
       <label for="d3-force-enabled">Auto-organise</label>
       <input type='button' id='home' onclick='document.home()' value='home' />
-      <textarea type="text" id="query-textarea" v-model="query" placeholder="Enter a cypher query" rows="4"
+      <textarea type="text" id="query-textarea" v-model="queryRef" placeholder="Enter a cypher query" rows="4"
         cols="40"></textarea>
       <input type="button" id="query-button" value='query' onclick='document.query()' />
       <text>If you wish, please <a href="https://github.com/tch1001/vue_twig">contribute</a>! (esp with css)</text>
@@ -95,6 +95,115 @@
 <script setup>
 
 import neo4j, { session } from 'neo4j-driver'
+async function deleteNode(nodeId) { // nodeInfo is the Node from Neo4J, nodeVisual is the SVG object representing the node
+  const objId = nodes[nodeId].objInfo.identity.toNumber();
+  const query = `MATCH (n) WHERE id(n)=$objId DETACH DELETE n`
+  await writeTransaction(query, { objId: objId },
+    (res) => {
+      delete nodes[nodeId]
+    });
+}
+async function deleteEdge(edgeId) {
+  const objId = edges[edgeId].objInfo.identity.toNumber();
+  const query = `MATCH (a)-[n]->(b) WHERE id(n)=$objId DELETE n`
+  await writeTransaction(query, { objId: objId },
+    (res) => {
+      delete edges[edgeId]
+    });
+}
+function getPropertyNameValue(row) { // row is the row of the table
+  const objId = parseInt(row.parentElement.parentElement.id); // id in neo4j
+  return [objId, row.children[0].innerText, row.children[1].innerText];
+}
+async function onInputPropertyName(e) { // edit property name
+  document.deleteMode = true;
+  let [objId, newPropertyName, newPropertyValue] = this.getPropertyNameValue(e.target.parentElement)
+  var propertyIdx = Array.prototype.indexOf.call(e.target.parentElement.parentElement.children, e.target.parentElement)
+  propertyIdx -= 1; // for the <id> row which doesnt change
+  const propertyNames = Object.keys(dataPanel.value['properties'])
+  const oldPropertyName = propertyNames[propertyIdx]
+  var query;
+  if (dataPanel.value['objType'] == 'Relationship') {
+    query = `MATCH (a)-[n]->(b) WHERE id(n)=$objId`
+  } else if (dataPanel.value['objType'] == 'Node') {
+    query = `MATCH (n) WHERE id(n)=$objId`
+  } else {
+    return;
+  }
+  if (newPropertyName == '') { // removing an old property
+    query += ` REMOVE n.\`${oldPropertyName}\` RETURN n`
+  } else if (oldPropertyName == newPropertyName) { // either a new property or there are no updates
+    return;
+  } else { // updating the name of an old property
+    query += ` SET n.\`${newPropertyName}\`=n.\`${oldPropertyName}\` REMOVE n.\`${oldPropertyName}\` RETURN n`
+  }
+  const curObj = dataPanel.value['obj']
+  await writeTransaction(query, { objId: objId, newPropertyValue: newPropertyValue },
+    (res) => {
+      curObj.objInfo = res.records[0].get('n')
+      // console.log(curObj, dataPanel.value['obj'], 'ARE NOT NECESSARILY THE SAME')
+      if (curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo, curObj)
+    });
+  // const p = res.records[0].get('n')
+  // dataPanel.value['obj'].objInfo = p
+}
+async function onInputPropertyValue(e) { // edit property value
+  document.deleteMode = true;
+  // name and value of altered property
+  let [objId, propertyName, propertyValue] = this.getPropertyNameValue(e.target.parentElement)
+  if (propertyName == '') return; // in the process of deleting it
+  var query;
+  if (dataPanel.value['objType'] == 'Relationship') {
+    query = `MATCH (a)-[n]->(b) WHERE id(n)=$objId`
+  } else if (dataPanel.value['objType'] == 'Node') {
+    query = `MATCH (n) WHERE id(n)=$objId`
+  } else {
+    return;
+  }
+  query += ` SET n.\`${propertyName}\`=$propertyValue RETURN n` // TODO something went wrong here, when i press tab from name
+  const curObj = dataPanel.value['obj'];
+  await writeTransaction(query, { objId: objId, propertyName: propertyName, propertyValue: propertyValue },
+    (res) => {
+      curObj.objInfo = res.records[0].get('n')
+      if (curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo, curObj);
+    });
+}
+async function onInputLabel(e) {
+  const labelIdx = Array.prototype.indexOf.call(e.target.parentElement.children, e.target)
+  const oldLabel = dataPanel.value['labels'][labelIdx];
+  var newLabel = e.target.textContent;
+  if (oldLabel == newLabel) return;
+  const objId = parseInt(e.target.parentElement.parentElement.id);
+  if (newLabel == '') {
+    if (dataPanel.value['objType'] == 'Relationship') {
+      newLabel = 'Edge'
+    } else {
+      const query = `MATCH (n) WHERE id(n)=$objId REMOVE n:\`${oldLabel}\` RETURN n`
+      const curObj = dataPanel.value['obj']
+      await writeTransaction(query, { objId: objId, oldLabel: oldLabel },
+        (res) => {
+          curObj.objInfo = res.records[0].get('n')
+          if (curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo, curObj);
+        });
+      return;
+    }
+  }
+  var query;
+  if (dataPanel.value['objType'] == 'Relationship') {
+    query = `MATCH (a)-[n2]->(b) WHERE id(n2)=$objId CREATE (a)-[n:\`${newLabel}\`]->(b) SET n=n2 WITH n,n2,a,b DELETE n2 RETURN a,n,b`
+  } else if (dataPanel.value['objType'] == 'Node') {
+    query = `MATCH (n) WHERE id(n)=$objId REMOVE n:\`${oldLabel}\` SET n:\`${newLabel}\` RETURN n`
+  } else {
+    return;
+  }
+  const curObj = dataPanel.value['obj'];
+  await writeTransaction(query, { objId: objId, newLabel: newLabel, oldLabel: oldLabel },
+    (res) => {
+      curObj.objInfo = res.records[0].get('n')
+      if (curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo, curObj);
+    });
+}
+
 document.connect = async function () {
   const serverURL = document.getElementById('server-url').value;
   const serverUsername = document.getElementById('server-username').value;
@@ -104,7 +213,7 @@ document.connect = async function () {
     neo4j.auth.basic(serverUsername, serverPassword))
   document.driver.verifyConnectivity().then(() => {
     console.log('connected');
-    window.vue.query = defaultQuery;
+    queryRef.value = defaultQuery;
     document.query();
   });
 }
@@ -113,14 +222,14 @@ document.home = function () {
   for (var j = 0; j < 1; ++j) { // TODO need to press home button twice
     const inf = 1000000000000;
     var minX = inf, minY = inf, maxX = -inf, maxY = -inf;
-    for (const i in window.vue.layouts.nodes) {
-      minX = Math.min(minX, window.vue.layouts.nodes[i].x)
-      minY = Math.min(minY, window.vue.layouts.nodes[i].y)
-      maxX = Math.max(maxX, window.vue.layouts.nodes[i].x)
-      maxY = Math.max(maxY, window.vue.layouts.nodes[i].y)
+    for (const i in layouts.value.nodes) {
+      minX = Math.min(minX, layouts.value.nodes[i].x)
+      minY = Math.min(minY, layouts.value.nodes[i].y)
+      maxX = Math.max(maxX, layouts.value.nodes[i].x)
+      maxY = Math.max(maxY, layouts.value.nodes[i].y)
     }
     const padding = 100;
-    window.vue.graph.setViewBox({
+    graph.value.setViewBox({
       left: minX - padding,
       top: minY - padding,
       right: maxX + padding * 5,
@@ -130,21 +239,21 @@ document.home = function () {
 }
 
 document.query = async function () {
-  const cypherQuery = window.vue.query;
+  const cypherQuery = queryRef.value;
   commandPanel.value.push(cypherQuery)
   const session = document.driver.session({ database: 'neo4j' });
   const tx = session.beginTransaction();
 
   const res = await tx.run(cypherQuery);
 
-  for (let i in window.vue.nodes) delete window.vue.nodes[i]
-  for (let i in window.vue.edges) delete window.vue.edges[i]
+  for (let i in nodes) delete nodes[i]
+  for (let i in edges) delete edges[i]
   const displayableProperties = ['title', 'name']
   res.records.forEach((record, index) => {
     var displayName = `Node ${index}`
     for (const key of record.keys) {
       const field = record._fields[record._fieldLookup[key]]
-      if (field.constructor.name == 'Node') {
+      if (Object.prototype.hasOwnProperty.call(field.__proto__, "__isNode__")) {
         for (const displayableProperty of displayableProperties) {
           if (displayableProperty in field.properties) {
             displayName = field.properties[displayableProperty]
@@ -154,13 +263,11 @@ document.query = async function () {
         var newVertex = addVertex(0, 0, field.identity.toNumber())
         newVertex.objInfo = field;
         newVertex.name = displayName;
-      } else if (field.constructor.name == 'Relationship') {
+      } else if (Object.prototype.hasOwnProperty.call(field.__proto__, "__isRelationship__")) {
         const s = field.start.toNumber().toString()
         const t = field.end.toNumber().toString()
         var newEdge = document.addEdge(s, t);
         newEdge.objInfo = field;
-      } else if (field.constructor.name == 'Integer') {
-        continue;
       }
     }
   })
@@ -204,12 +311,12 @@ function setHandler(mode) { // event handler (mode is determined by keyboard inp
     const objSelect = function (e, objs) {
       if (e.length == 0) return;
       document.fixDataPanel = false;
-      window.vue.updateDataPanel(objs[e[e.length - 1]].objInfo, objs[e[e.length - 1]])
+      updateDataPanel(objs[e[e.length - 1]].objInfo, objs[e[e.length - 1]])
       console.log(dataPanel.value['obj'])
       document.fixDataPanel = true;
     }
-    document.nodeSelect = (e) => { objSelect(e, window.vue.nodes); }
-    document.edgeSelect = (e) => { objSelect(e, window.vue.edges); }
+    document.nodeSelect = (e) => { objSelect(e, nodes); }
+    document.edgeSelect = (e) => { objSelect(e, edges); }
   } else if (mode == 'vertex') { // adding vertex
     document.viewClick = addVertexWithMouse;
   } else if (mode == 'edge') {
@@ -250,8 +357,8 @@ async function addEdgePrep(e) {
     const newEdge = document.addEdge(document.sourceNode, e.node)
     document.sourceNode = null;
 
-    const s = window.vue.nodes[newEdge.source].objInfo.identity.toNumber();
-    const t = window.vue.nodes[newEdge.target].objInfo.identity.toNumber();
+    const s = nodes[newEdge.source].objInfo.identity.toNumber();
+    const t = nodes[newEdge.target].objInfo.identity.toNumber();
     const query = 'MATCH (a), (b) WHERE id(a)=$s AND id(b)=$t CREATE (a)-[e:Edge]->(b) RETURN e'
 
     await writeTransaction(query, { s: s, t: t },
@@ -269,17 +376,17 @@ function addVertex(x, y, nodeId) {
   }
   const name = `Node ${nextNodeIndex.value}`
   nodes[nodeId] = { name }
-  window.vue.layouts.nodes[nodeId] = { x: x, y: y };
+  layouts.value.nodes[nodeId] = { x: x, y: y };
   return nodes[nodeId];
 }
 
 async function addVertexWithMouse(e) {
   const point = { x: e.offsetX, y: e.offsetY }
   // translate coordinates: DOM -> SVG
-  const svgPoint = window.vue.graph.translateFromDomToSvgCoordinates(point)
+  const svgPoint = graph.value.translateFromDomToSvgCoordinates(point)
   const newNode = addVertex(svgPoint.x, svgPoint.y);
   const query = "CREATE (n) SET n.name=$newName RETURN n"
-  await window.vue.writeTransaction(query, { newName: newNode.name },
+  await writeTransaction(query, { newName: newNode.name },
     (res) => {
       newNode.objInfo = res.records[0].get('n')
       updateDataPanel(newNode.objInfo, newNode)
@@ -288,12 +395,12 @@ async function addVertexWithMouse(e) {
 
 document.removeNode = async function () {
   for (const nodeId of selectedNodes.value) {
-    window.vue.deleteNode(nodeId)
+    deleteNode(nodeId)
   }
 }
 document.removeEdge = function () {
   for (const edgeId of selectedEdges.value) {
-    window.vue.deleteEdge(edgeId)
+    deleteEdge(edgeId)
   }
 }
 </script>
@@ -319,6 +426,15 @@ var original_edges = {
 const graph = ref();
 const nodes = reactive({ ...original_nodes })
 const edges = reactive({ ...original_edges })
+const layouts = ref({
+  nodes: {
+    node1: { x: 0, y: 0 },
+    node2: { x: 50, y: 50 },
+    node3: { x: 100, y: 0 },
+    node4: { x: 150, y: 50 },
+  },
+});
+
 const nextNodeIndex = ref(Object.keys(nodes).length + 1)
 const nextEdgeIndex = ref(Object.keys(edges).length + 1)
 
@@ -328,7 +444,7 @@ const eventLogs = reactive([])
 const defaultQuery = `MATCH (p)-[e]->(q) RETURN e LIMIT 100 
 UNION ALL 
 MATCH (p) RETURN p as e LIMIT 100`
-const query = ref(defaultQuery)
+const queryRef = ref(defaultQuery)
 
 const dataPanel = ref({})
 const commandPanel = ref([])
@@ -353,19 +469,18 @@ function updateDataPanel(objInfo, obj) { // TODO actually can just change the pa
   }
   if (!objInfo) return;
   dataPanel.value = {}
-  dataPanel.value['objType'] = objInfo.constructor.name
+  if(Object.prototype.hasOwnProperty.call(objInfo.__proto__, '__isRelationship__')){
+    dataPanel.value['objType'] = 'Relationship'
+    dataPanel.value['labels'] = [objInfo.type];
+  }else if(Object.prototype.hasOwnProperty.call(objInfo.__proto__, '__isNode__')){
+    dataPanel.value['objType'] = 'Node'
+    dataPanel.value['labels'] = objInfo.labels;
+  }
   if (obj) {
     dataPanel.value['obj'] = obj
   }
   dataPanel.value['id'] = objInfo.identity.toNumber();
   dataPanel.value['properties'] = objInfo.properties;
-  if (objInfo.constructor.name == 'Node') {
-    dataPanel.value['labels'] = objInfo.labels;
-  } else if (objInfo.constructor.name == 'Relationship') {
-    dataPanel.value['labels'] = [objInfo.type];
-  } else {
-    return;
-  }
 }
 
 
@@ -466,126 +581,10 @@ export default defineComponent({
       },
     }
     const zoomLevel = ref(1.5)
-    const layouts = reactive({
-      nodes: {
-        node1: { x: 0, y: 0 },
-        node2: { x: 50, y: 50 },
-        node3: { x: 100, y: 0 },
-        node4: { x: 150, y: 50 },
-      },
-    });
     // variables to be used in html
-    return { graph, nodes, edges, configs, layouts, zoomLevel, d3ForceEnabled, eventHandlers, dataPanel, commandPanel, query }
+    return { graph, nodes, edges, configs, layouts, zoomLevel, d3ForceEnabled, eventHandlers, dataPanel, commandPanel, queryRef }
   },
   methods: {
-    async deleteNode(nodeId) { // nodeInfo is the Node from Neo4J, nodeVisual is the SVG object representing the node
-      const objId = nodes[nodeId].objInfo.identity.toNumber();
-      const query = `MATCH (n) WHERE id(n)=$objId DETACH DELETE n`
-      await writeTransaction(query, { objId: objId },
-        (res) => {
-          delete nodes[nodeId]
-        });
-    },
-    async deleteEdge(edgeId) {
-      const objId = edges[edgeId].objInfo.identity.toNumber();
-      const query = `MATCH (a)-[n]->(b) WHERE id(n)=$objId DELETE n`
-      await writeTransaction(query, { objId: objId },
-        (res) => {
-          delete edges[edgeId]
-        });
-    },
-    getPropertyNameValue(row) { // row is the row of the table
-      const objId = parseInt(row.parentElement.parentElement.id); // id in neo4j
-      return [objId, row.children[0].innerText, row.children[1].innerText];
-    },
-    async onInputPropertyName(e) { // edit property name
-      document.deleteMode = true;
-      let [objId, newPropertyName, newPropertyValue] = this.getPropertyNameValue(e.target.parentElement)
-      var propertyIdx = Array.prototype.indexOf.call(e.target.parentElement.parentElement.children, e.target.parentElement)
-      propertyIdx -= 1; // for the <id> row which doesnt change
-      const propertyNames = Object.keys(dataPanel.value['properties'])
-      const oldPropertyName = propertyNames[propertyIdx]
-      var query;
-      if (dataPanel.value['objType'] == 'Relationship') {
-        query = `MATCH (a)-[n]->(b) WHERE id(n)=$objId`
-      } else if (dataPanel.value['objType'] == 'Node') {
-        query = `MATCH (n) WHERE id(n)=$objId`
-      } else {
-        return;
-      }
-      if (newPropertyName == '') { // removing an old property
-        query += ` REMOVE n.\`${oldPropertyName}\` RETURN n`
-      } else if (oldPropertyName == newPropertyName) { // either a new property or there are no updates
-        return;
-      } else { // updating the name of an old property
-        query += ` SET n.\`${newPropertyName}\`=n.\`${oldPropertyName}\` REMOVE n.\`${oldPropertyName}\` RETURN n`
-      }
-      const curObj = dataPanel.value['obj']
-      await writeTransaction(query, { objId: objId, newPropertyValue: newPropertyValue },
-        (res) => {
-          curObj.objInfo = res.records[0].get('n')
-          // console.log(curObj, dataPanel.value['obj'], 'ARE NOT NECESSARILY THE SAME')
-          if (curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo, curObj)
-        });
-      // const p = res.records[0].get('n')
-      // dataPanel.value['obj'].objInfo = p
-    },
-    async onInputPropertyValue(e) { // edit property value
-      document.deleteMode = true;
-      // name and value of altered property
-      let [objId, propertyName, propertyValue] = this.getPropertyNameValue(e.target.parentElement)
-      if (propertyName == '') return; // in the process of deleting it
-      var query;
-      if (dataPanel.value['objType'] == 'Relationship') {
-        query = `MATCH (a)-[n]->(b) WHERE id(n)=$objId`
-      } else if (dataPanel.value['objType'] == 'Node') {
-        query = `MATCH (n) WHERE id(n)=$objId`
-      } else {
-        return;
-      }
-      query += ` SET n.\`${propertyName}\`=$propertyValue RETURN n` // TODO something went wrong here, when i press tab from name
-      const curObj = dataPanel.value['obj'];
-      await writeTransaction(query, { objId: objId, propertyName: propertyName, propertyValue: propertyValue },
-        (res) => {
-          curObj.objInfo = res.records[0].get('n')
-          if (curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo, curObj);
-        });
-    },
-    async onInputLabel(e) {
-      const labelIdx = Array.prototype.indexOf.call(e.target.parentElement.children, e.target)
-      const oldLabel = dataPanel.value['labels'][labelIdx];
-      var newLabel = e.target.textContent;
-      if (oldLabel == newLabel) return;
-      const objId = parseInt(e.target.parentElement.parentElement.id);
-      if (newLabel == '') {
-        if (dataPanel.value['objType'] == 'Relationship') {
-          newLabel = 'Edge'
-        } else {
-          const query = `MATCH (n) WHERE id(n)=$objId REMOVE n:\`${oldLabel}\` RETURN n`
-          const curObj = dataPanel.value['obj']
-          await writeTransaction(query, { objId: objId, oldLabel: oldLabel },
-            (res) => {
-              curObj.objInfo = res.records[0].get('n')
-              if (curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo, curObj);
-            });
-          return;
-        }
-      }
-      var query;
-      if (dataPanel.value['objType'] == 'Relationship') {
-        query = `MATCH (a)-[n2]->(b) WHERE id(n2)=$objId CREATE (a)-[n:\`${newLabel}\`]->(b) SET n=n2 WITH n,n2,a,b DELETE n2 RETURN a,n,b`
-      } else if (dataPanel.value['objType'] == 'Node') {
-        query = `MATCH (n) WHERE id(n)=$objId REMOVE n:\`${oldLabel}\` SET n:\`${newLabel}\` RETURN n`
-      } else {
-        return;
-      }
-      const curObj = dataPanel.value['obj'];
-      await writeTransaction(query, { objId: objId, newLabel: newLabel, oldLabel: oldLabel },
-        (res) => {
-          curObj.objInfo = res.records[0].get('n')
-          if (curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo, curObj);
-        });
-    }
   },
   mounted() {
     document.getElementById('graph-div-error').remove()
@@ -599,7 +598,6 @@ export default defineComponent({
     }
     window.addEventListener('resize', resize);
     resize();
-    window.vue = this
   }
 })
 </script>
