@@ -5,46 +5,138 @@
       :event-handlers="eventHandlers" />
   </div>
 
-  <div class="control-panel">
-    <div class="control-panel-login">
-      <table>
-        <tr>
-          <td>
-            <label for="server-url">Server URL: </label>
-          </td>
-          <td>
-            <input type="text" id="server-url" value="neo4j+s://ae6e3bf9.databases.neo4j.io" />
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <label for="server-username">Username: </label>
-          </td>
-          <td>
-            <input type="text" id="server-username" value="neo4j" /><br>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <label for="server-password">Password: </label>
-          </td>
-          <td>
-            <input type="password" id="server-password" value="pxHM45j7jD54_tvddMklXySWjbafvZfv01-B_GIDpVU" />
-          </td>
-        </tr>
-      </table>
+  <div id="login-form-modal" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-card">
+      <header class="modal-card-head">
+        <p class="modal-card-title">Authenticate to Neo4j</p>
+        <button class="delete" aria-label="close"></button>
+      </header>
+      <section class="modal-card-body">
+        <form>
+          <div class="row">
+            <label class="label" for="server-url">Server URL</label>
+            <div class="control">
+              <input class="input" type="text" id="server-url" value="neo4j+s://ae6e3bf9.databases.neo4j.io" />
+            </div>
+          </div>
+
+          <div class="row">
+            <label class="label" for="server-username">Username</label>
+            <div class="control">
+              <input class="input" type="text" id="server-username" value="neo4j"/>
+            </div>
+          </div>
+
+          <div class="row">
+            <label class="label" for="server-password">Password</label>
+            <div class="control">
+              <input class="input" type="password" id="server-password" value="pxHM45j7jD54_tvddMklXySWjbafvZfv01-B_GIDpVU"/>
+            </div>
+          </div>
+
+        </form>
+      </section>
+      <footer class="modal-card-foot">
+        <div class="container">
+          <button class="button is-danger is-pulled-left">Cancel</button>
+          <button class="button is-primary is-pulled-right" type="button" onclick="document.connect()">Connect</button>
+        </div>
+      </footer>
     </div>
-    <div class="control-panel-controls">
-      <input type="button" value="Connect" onclick="document.connect()" />
-      <input type='checkbox' id='d3-force-enabled' v-model="d3ForceEnabled" />
-      <label for="d3-force-enabled">Auto-organise</label>
-      <input type='button' id='home' onclick='document.home()' value='home' />
-      <textarea type="text" id="query-textarea" v-model="queryRef" placeholder="Enter a cypher query" rows="4"
-        cols="40"></textarea>
-      <input type="button" id="query-button" value='query' onclick='document.query()' />
-      <text>If you wish, please <a href="https://github.com/tch1001/vue_twig">contribute</a>! (esp with css)</text>
+
+  </div>
+
+  <div id="query-console-modal" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-card">
+      <header class="modal-card-head">
+        <p class="modal-card-title">Query console</p>
+        <button class="delete" aria-label="close"></button>
+      </header>
+      <section class="modal-card-body">
+        <textarea type="text" id="query-textarea" v-model="queryRef" placeholder="Enter a cypher query" rows="4"
+                  cols="40"></textarea>
+      </section>
+      <section class="modal-card-foot">
+        <div class="container">
+          <button class="button is-danger is-pulled-left">Cancel</button>
+          <button class="button is-primary is-pulled-right" type="button" id="query-button" onclick="document.query()">
+            Execute
+          </button>
+        </div>
+      </section>
+    </div>
+
+  </div>
+
+  <div id="config-modal" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-card">
+      <header class="modal-card-head">
+        <p class="modal-card-title">Configuration</p>
+        <button class="delete" aria-label="close"></button>
+      </header>
+      <section class="modal-card-body">
+        <form>
+          <label class="checkbox">
+            <input type="checkbox" id="d3-force-enabled" v-model="d3ForceEnabled" />
+            Auto-organise
+          </label>
+        </form>
+      </section>
+      <footer class="modal-card-foot">
+        <div class="container">
+          <button class="button is-primary">Done</button>
+        </div>
+      </footer>
     </div>
   </div>
+
+  <nav class="navbar" id="control-panel" >
+    <div class="navbar-brand">
+      <a class="navbar-item" href="#" onclick="document.home()">
+        TWIG
+      </a>
+      <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="twig-main-nav">
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+      </a>
+    </div>
+
+    <div id="twig-main-nav" class="navbar-menu">
+      <div class="navbar-start">
+        <div class="navbar-item">
+          <a href="#" onclick="document.home()">Home</a>
+        </div>
+        <div class="navbar-item">
+          <a class="js-modal-trigger" data-target="config-modal">
+            Config
+          </a>
+        </div>
+      </div>
+      <div class="navbar-end">
+        <div class="navbar-item">
+          <a href="https://github.com/tch1001/vue_twig" target="_blank">
+            <font-awesome-icon icon="fa-brands fa-github"></font-awesome-icon>
+          </a>
+        </div>
+        <div class="navbar-item">
+          <div class="buttons">
+            <button class="button is-info js-modal-trigger" data-target="login-form-modal">
+              Login
+            </button>
+            <button class="button is-link js-modal-trigger" data-target="query-console-modal">
+              Query
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+<!--      <div class="column">-->
+
+<!--      </div>-->
+  </nav>
   <div class="info-panel-outer">
     <div class="info-panel-inner">
       <div v-if="dataPanel.labels" v-bind:id="dataPanel.id" class="info-panel-inner-details-id">
@@ -435,6 +527,52 @@ document.removeEdge = function () {
     deleteEdge(edgeId)
   }
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Functions to open and close a modal
+  function openModal($el) {
+    $el.classList.add('is-active');
+  }
+
+  function closeModal($el) {
+    $el.classList.remove('is-active');
+  }
+
+  function closeAllModals() {
+    (document.querySelectorAll('.modal') || []).forEach(($modal) => {
+      closeModal($modal);
+    });
+  }
+
+  // Add a click event on buttons to open a specific modal
+  (document.querySelectorAll('.js-modal-trigger') || []).forEach(($trigger) => {
+    const modal = $trigger.dataset.target;
+    const $target = document.getElementById(modal);
+
+    $trigger.addEventListener('click', () => {
+      openModal($target);
+    });
+  });
+
+  // Add a click event on various child elements to close the parent modal
+  (document.querySelectorAll('.modal-background, .modal-close, .modal-card-head .delete, .modal-card-foot .button') || []).forEach(($close) => {
+    const $target = $close.closest('.modal');
+
+    $close.addEventListener('click', () => {
+      closeModal($target);
+    });
+  });
+
+  // Add a keyboard event to close all modals
+  document.addEventListener('keydown', (event) => {
+    const e = event || window.event;
+
+    if (e.keyCode === 27) { // Escape key
+      closeAllModals();
+    }
+  });
+});
+
 </script>
 
 <script>
@@ -633,6 +771,8 @@ export default defineComponent({
   }
 })
 </script>
+
+
 
 <style>
 #graph {

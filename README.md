@@ -1,24 +1,13 @@
-# vue_twig
+# TWIG
 
-## Project setup
-```
-npm install
-```
+A cool project
 
-### Compiles and hot-reloads for development
-```
-npm run serve
-```
+## Dev
 
-### Compiles and minifies for production
-```
-npm run build
-```
+This requires a Neo4j server to be running. 
+Afterwards, just run `npm install` and `npm run serve`
 
-### Lints and fixes files
-```
-npm run lint
-```
 
-### Customize configuration
-See [Configuration Reference](https://cli.vuejs.org/config/).
+### Docker
+
+Sometime soon maybe (I mean there's literally no backend yet)
