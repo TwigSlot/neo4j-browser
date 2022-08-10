@@ -47,7 +47,7 @@
 
   </div>
 
-  <div id="query-console" class="modal">
+  <div id="query-console-modal" class="modal">
     <div class="modal-background"></div>
     <div class="modal-card">
       <header class="modal-card-head">
@@ -70,12 +70,36 @@
 
   </div>
 
+  <div id="config-modal" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-card">
+      <header class="modal-card-head">
+        <p class="modal-card-title">Configuration</p>
+        <button class="delete" aria-label="close"></button>
+      </header>
+      <section class="modal-card-body">
+        <form>
+          <label class="checkbox">
+            <input type="checkbox" id="d3-force-enabled" v-model="d3ForceEnabled" />
+            Auto-organise
+          </label>
+        </form>
+      </section>
+      <footer class="modal-card-foot">
+        <div class="container">
+          <button class="button is-primary">Done</button>
+        </div>
+      </footer>
+    </div>
+  </div>
+
   <nav class="navbar" id="control-panel" >
     <div class="navbar-brand">
       <a class="navbar-item" href="#" onclick="document.home()">
         TWIG
       </a>
       <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="twig-main-nav">
+        <span aria-hidden="true"></span>
         <span aria-hidden="true"></span>
       </a>
     </div>
@@ -85,31 +109,33 @@
         <div class="navbar-item">
           <a href="#" onclick="document.home()">Home</a>
         </div>
+        <div class="navbar-item">
+          <a class="js-modal-trigger" data-target="config-modal">
+            Config
+          </a>
+        </div>
       </div>
       <div class="navbar-end">
+        <div class="navbar-item">
+          <a href="https://github.com/tch1001/vue_twig" target="_blank">
+            <font-awesome-icon icon="fa-brands fa-github"></font-awesome-icon>
+          </a>
+        </div>
         <div class="navbar-item">
           <div class="buttons">
             <button class="button is-info js-modal-trigger" data-target="login-form-modal">
               Login
             </button>
-            <button class="button is-link js-modal-trigger" data-target="query-console">
+            <button class="button is-link js-modal-trigger" data-target="query-console-modal">
               Query
             </button>
           </div>
         </div>
       </div>
     </div>
-
-<!--    <div class="column">-->
 <!--      <div class="column">-->
-<!--        <input type='checkbox' id='d3-force-enabled' v-model="d3ForceEnabled" />-->
-<!--        <label for="d3-force-enabled">Auto-organise</label>-->
-<!--      </div>-->
 
-<!--      <div class="column">-->
-<!--        <text>If you wish, please <a href="https://github.com/tch1001/vue_twig">contribute</a>! (esp with css)</text>-->
 <!--      </div>-->
-<!--    </div>-->
   </nav>
   <div class="info-panel-outer">
     <div class="info-panel-inner">
