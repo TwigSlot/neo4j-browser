@@ -111,13 +111,13 @@ async function deleteEdge(edgeId) {
       delete edges[edgeId]
     });
 }
-function getPropertyNameValue(row) { // row is the row of the table
+async function getPropertyNameValue(row) { // row is the row of the table
   const objId = parseInt(row.parentElement.parentElement.id); // id in neo4j
   return [objId, row.children[0].innerText, row.children[1].innerText];
 }
 async function onInputPropertyName(e) { // edit property name
   document.deleteMode = true;
-  let [objId, newPropertyName, newPropertyValue] = this.getPropertyNameValue(e.target.parentElement)
+  let [objId, newPropertyName, newPropertyValue] = await getPropertyNameValue(e.target.parentElement)
   var propertyIdx = Array.prototype.indexOf.call(e.target.parentElement.parentElement.children, e.target.parentElement)
   propertyIdx -= 1; // for the <id> row which doesnt change
   const propertyNames = Object.keys(dataPanel.value['properties'])
@@ -142,7 +142,12 @@ async function onInputPropertyName(e) { // edit property name
     (res) => {
       curObj.objInfo = res.records[0].get('n')
       // console.log(curObj, dataPanel.value['obj'], 'ARE NOT NECESSARILY THE SAME')
-      if (curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo, curObj)
+      if (curObj == dataPanel.value['obj']) {
+        const prev = document.fixDataPanel;
+        document.fixDataPanel = false;
+        updateDataPanel(curObj.objInfo, curObj)
+        document.fixDataPanel = prev;
+      }
     });
   // const p = res.records[0].get('n')
   // dataPanel.value['obj'].objInfo = p
@@ -150,7 +155,7 @@ async function onInputPropertyName(e) { // edit property name
 async function onInputPropertyValue(e) { // edit property value
   document.deleteMode = true;
   // name and value of altered property
-  let [objId, propertyName, propertyValue] = this.getPropertyNameValue(e.target.parentElement)
+  let [objId, propertyName, propertyValue] = await getPropertyNameValue(e.target.parentElement)
   if (propertyName == '') return; // in the process of deleting it
   var query;
   if (dataPanel.value['objType'] == 'Relationship') {
@@ -165,7 +170,12 @@ async function onInputPropertyValue(e) { // edit property value
   await writeTransaction(query, { objId: objId, propertyName: propertyName, propertyValue: propertyValue },
     (res) => {
       curObj.objInfo = res.records[0].get('n')
-      if (curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo, curObj);
+      if (curObj == dataPanel.value['obj']) {
+        const prev = document.fixDataPanel;
+        document.fixDataPanel = false;
+        updateDataPanel(curObj.objInfo, curObj)
+        document.fixDataPanel = prev;
+      }
     });
 }
 async function onInputLabel(e) {
@@ -183,7 +193,12 @@ async function onInputLabel(e) {
       await writeTransaction(query, { objId: objId, oldLabel: oldLabel },
         (res) => {
           curObj.objInfo = res.records[0].get('n')
-          if (curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo, curObj);
+          if (curObj == dataPanel.value['obj']) {
+            const prev = document.fixDataPanel;
+            document.fixDataPanel = false;
+            updateDataPanel(curObj.objInfo, curObj)
+            document.fixDataPanel = prev;
+          }
         });
       return;
     }
@@ -197,11 +212,16 @@ async function onInputLabel(e) {
     return;
   }
   const curObj = dataPanel.value['obj'];
-  await writeTransaction(query, { objId: objId, newLabel: newLabel, oldLabel: oldLabel },
-    (res) => {
-      curObj.objInfo = res.records[0].get('n')
-      if (curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo, curObj);
-    });
+  await writeTransaction(query, { objId: objId, newLabel: newLabel, oldLabel: oldLabel }, (res) => {
+    curObj.objInfo = res.records[0].get('n')
+    if (curObj == dataPanel.value['obj']) {
+      const prev = document.fixDataPanel;
+      document.fixDataPanel = false;
+      updateDataPanel(curObj.objInfo, curObj)
+      document.fixDataPanel = prev;
+    }
+
+  });
 }
 
 document.connect = async function () {
@@ -218,7 +238,7 @@ document.connect = async function () {
   });
 }
 // document.connect();
-document.home = function () {
+document.home = async function () {
   for (var j = 0; j < 1; ++j) { // TODO need to press home button twice
     const inf = 1000000000000;
     var minX = inf, minY = inf, maxX = -inf, maxY = -inf;
@@ -293,10 +313,15 @@ document.addProperty = async function () {
     (res) => {
       curObj.objInfo = res.records[0].get('n')
       // console.log(curObj, dataPanel.value['obj'], 'ARE NOT NECESSARILY THE SAME')
-      if (curObj == dataPanel.value['obj']) updateDataPanel(curObj.objInfo, curObj)
+      if (curObj == dataPanel.value['obj']) {
+        const prev = document.fixDataPanel;
+        document.fixDataPanel = false;
+        updateDataPanel(curObj.objInfo, curObj)
+        document.fixDataPanel = prev;
+      }
     });
 }
-function initHandler() {
+async function initHandler() {
   document.fixDataPanel = false;
   document.viewClick = () => { };
   document.nodeSelect = () => { };
@@ -304,7 +329,7 @@ function initHandler() {
   document.edgeSelect = () => { };
 }
 initHandler();
-function setHandler(mode) { // event handler (mode is determined by keyboard input)
+async function setHandler(mode) { // event handler (mode is determined by keyboard input)
   initHandler();
   if (mode == 'select') {
     document.fixDataPanel = true;
@@ -364,7 +389,10 @@ async function addEdgePrep(e) {
     await writeTransaction(query, { s: s, t: t },
       (res) => {
         newEdge.objInfo = res.records[0].get('e')
+        const prev = document.fixDataPanel;
+        document.fixDataPanel = false;
         updateDataPanel(newEdge.objInfo, newEdge)
+        document.fixDataPanel = prev;
       });
   }
 }
@@ -389,7 +417,11 @@ async function addVertexWithMouse(e) {
   await writeTransaction(query, { newName: newNode.name },
     (res) => {
       newNode.objInfo = res.records[0].get('n')
+      const prev = document.fixDataPanel;
+      document.fixDataPanel = false;
       updateDataPanel(newNode.objInfo, newNode)
+      document.fixDataPanel = prev;
+
     })
 }
 
@@ -469,10 +501,10 @@ function updateDataPanel(objInfo, obj) { // TODO actually can just change the pa
   }
   if (!objInfo) return;
   dataPanel.value = {}
-  if(Object.prototype.hasOwnProperty.call(objInfo.__proto__, '__isRelationship__')){
+  if (Object.prototype.hasOwnProperty.call(objInfo.__proto__, '__isRelationship__')) {
     dataPanel.value['objType'] = 'Relationship'
     dataPanel.value['labels'] = [objInfo.type];
-  }else if(Object.prototype.hasOwnProperty.call(objInfo.__proto__, '__isNode__')){
+  } else if (Object.prototype.hasOwnProperty.call(objInfo.__proto__, '__isNode__')) {
     dataPanel.value['objType'] = 'Node'
     dataPanel.value['labels'] = objInfo.labels;
   }
