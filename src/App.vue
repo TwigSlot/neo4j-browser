@@ -17,21 +17,21 @@
           <div class="row">
             <label class="label" for="server-url">Server URL</label>
             <div class="control">
-              <input class="input" type="text" id="server-url" value="neo4j+s://ae6e3bf9.databases.neo4j.io" />
+              <input class="input" type="text" id="server-url" v-model="server_url" />
             </div>
           </div>
 
           <div class="row">
             <label class="label" for="server-username">Username</label>
             <div class="control">
-              <input class="input" type="text" id="server-username" value="neo4j"/>
+              <input class="input" type="text" id="server-username" v-model="server_username" />
             </div>
           </div>
 
           <div class="row">
             <label class="label" for="server-password">Password</label>
             <div class="control">
-              <input class="input" type="password" id="server-password" value="pxHM45j7jD54_tvddMklXySWjbafvZfv01-B_GIDpVU"/>
+              <input class="input" type="password" id="server-password" v-model="server_password" />
             </div>
           </div>
 
@@ -39,8 +39,9 @@
       </section>
       <footer class="modal-card-foot">
         <div class="container">
-          <button class="button is-danger is-pulled-left">Cancel</button>
-          <button class="button is-primary is-pulled-right" type="button" onclick="document.connect()">Connect</button>
+          <button class="button button-close is-danger is-pulled-left">Cancel</button>
+          <button class="button button-close is-primary is-pulled-right" type="button"
+            @click="connect()">Connect</button>
         </div>
       </footer>
     </div>
@@ -55,13 +56,15 @@
         <button class="delete" aria-label="close"></button>
       </header>
       <section class="modal-card-body">
-        <textarea type="text" id="query-textarea" v-model="queryRef" placeholder="Enter a cypher query" rows="4"
-                  cols="40"></textarea>
+        <textarea type="text" id="query-textarea" v-model="query_ref" placeholder="Enter a cypher query" rows="4"
+          cols="40"></textarea>
       </section>
       <section class="modal-card-foot">
         <div class="container">
-          <button class="button is-danger is-pulled-left">Cancel</button>
-          <button class="button is-primary is-pulled-right" type="button" id="query-button" onclick="document.query()">
+          <button class="button button-close is-danger is-pulled-left">Cancel</button>
+          <button class="button is-pulled-left" @click="query_ref = defaultQuery">Default</button>
+          <button class="button button-close is-primary is-pulled-right" type="button" id="query-button"
+            onclick="document.query()">
             Execute
           </button>
         </div>
@@ -87,13 +90,13 @@
       </section>
       <footer class="modal-card-foot">
         <div class="container">
-          <button class="button is-primary">Done</button>
+          <button class="button button-close is-primary">Done</button>
         </div>
       </footer>
     </div>
   </div>
 
-  <nav class="navbar" id="control-panel" >
+  <nav class="navbar" id="control-panel">
     <div class="navbar-brand">
       <a class="navbar-item" href="#" onclick="document.home()">
         TWIG
@@ -107,7 +110,7 @@
     <div id="twig-main-nav" class="navbar-menu">
       <div class="navbar-start">
         <div class="navbar-item">
-          <a href="#" onclick="document.home()">Home</a>
+          <a href="#" onclick="document.home()">Center</a>
         </div>
         <div class="navbar-item">
           <a class="js-modal-trigger" data-target="config-modal">
@@ -133,9 +136,9 @@
         </div>
       </div>
     </div>
-<!--      <div class="column">-->
+    <!--      <div class="column">-->
 
-<!--      </div>-->
+    <!--      </div>-->
   </nav>
   <div class="info-panel-outer">
     <div class="info-panel-inner">
@@ -316,20 +319,6 @@ async function onInputLabel(e) {
   });
 }
 
-document.connect = async function () {
-  const serverURL = document.getElementById('server-url').value;
-  const serverUsername = document.getElementById('server-username').value;
-  const serverPassword = document.getElementById('server-password').value;
-  console.log('connecting to neo4j')
-  document.driver = neo4j.driver(serverURL,
-    neo4j.auth.basic(serverUsername, serverPassword))
-  document.driver.verifyConnectivity().then(() => {
-    console.log('connected');
-    queryRef.value = defaultQuery;
-    document.query();
-  });
-}
-// document.connect();
 document.home = async function () {
   for (var j = 0; j < 1; ++j) { // TODO need to press home button twice
     const inf = 1000000000000;
@@ -351,7 +340,8 @@ document.home = async function () {
 }
 
 document.query = async function () {
-  const cypherQuery = queryRef.value;
+  console.log('query')
+  const cypherQuery = query_ref.value;
   commandPanel.value.push(cypherQuery)
   const session = document.driver.session({ database: 'neo4j' });
   const tx = session.beginTransaction();
@@ -555,7 +545,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Add a click event on various child elements to close the parent modal
-  (document.querySelectorAll('.modal-background, .modal-close, .modal-card-head .delete, .modal-card-foot .button') || []).forEach(($close) => {
+  (document.querySelectorAll('.modal-background, .modal-close, .modal-card-head .delete, .modal-card-foot .button-close') || []).forEach(($close) => {
     const $target = $close.closest('.modal');
 
     $close.addEventListener('click', () => {
@@ -614,10 +604,15 @@ const eventLogs = reactive([])
 const defaultQuery = `MATCH (p)-[e]->(q) RETURN e LIMIT 100 
 UNION ALL 
 MATCH (p) RETURN p as e LIMIT 100`
-const queryRef = ref(defaultQuery)
+const query_ref = ref(defaultQuery)
 
 const dataPanel = ref({})
 const commandPanel = ref([])
+
+var server_url = ref("hi")
+const server_username = ref("x")
+const server_password = ref("y")
+
 async function writeTransaction(query, params, callback) {
   console.log(query, params)
   const session = document.driver.session({
@@ -631,6 +626,20 @@ async function writeTransaction(query, params, callback) {
   session.close()
   if (callback) callback(res);
   return res
+}
+function connect() {
+  const serverURL = server_url.value;
+  const serverUsername = server_username.value;
+  const serverPassword = server_password.value;
+  console.log('connecting to neo4j', serverURL, serverUsername, serverPassword)
+  console.log()
+  document.driver = neo4j.driver(serverURL,
+    neo4j.auth.basic(serverUsername, serverPassword))
+  document.driver.verifyConnectivity().then(() => {
+    console.log('connected');
+    document.query();
+  });
+
 }
 function updateDataPanel(objInfo, obj) { // TODO actually can just change the params to obj
   const total = selectedNodes.value.length + selectedEdges.value.length
@@ -723,13 +732,6 @@ export default defineComponent({
     const eventHandlers = {
       // wildcard: capture all events
       "*": (type, event) => {
-        // if (eventLogs.length > EVENTS_COUNT) {
-        //   eventLogs.splice(EVENTS_COUNT, eventLogs.length - EVENTS_COUNT)
-        // }
-        // if (event instanceof Object && "event" in event) {
-        //   Object.assign(event, { event: "(...)" })
-        // }
-        // eventLogs.unshift([type, JSON.stringify(event)])
         if (type == 'view:click') {
           document.viewClick(event.event);
         } else if (type == 'node:click') {
@@ -752,11 +754,20 @@ export default defineComponent({
     }
     const zoomLevel = ref(1.5)
     // variables to be used in html
-    return { graph, nodes, edges, configs, layouts, zoomLevel, d3ForceEnabled, eventHandlers, dataPanel, commandPanel, queryRef }
+    return {
+      graph, nodes, edges, configs, layouts, zoomLevel, d3ForceEnabled, eventHandlers, dataPanel, commandPanel, query_ref,
+
+      server_url, server_username, server_password
+    }
   },
   methods: {
+    connect
   },
   mounted() {
+    if (localStorage.server_url) { this.server_url = localStorage.server_url }
+    if (localStorage.server_username) { this.server_username = localStorage.server_username }
+    if (localStorage.server_password) { this.server_password = localStorage.server_password }
+    if (localStorage.query_ref) { this.query_ref = localStorage.query_ref }
     document.getElementById('graph-div-error').remove()
     function resize(ev) {
       var graph = document.getElementById('graph');
@@ -768,7 +779,14 @@ export default defineComponent({
     }
     window.addEventListener('resize', resize);
     resize();
-  }
+    connect()
+  },
+  watch: {
+    server_url(new_server_url) { localStorage.server_url = new_server_url },
+    server_username(new_server_username) { localStorage.server_username = new_server_username },
+    server_password(new_server_password) { localStorage.server_password = new_server_password },
+    query_ref(new_query) { localStorage.query_ref = new_query }
+  },
 })
 </script>
 
